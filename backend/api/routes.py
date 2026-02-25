@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 # from core.storage.archive_reader import read_timeseries
-# from core.analysis.trajectory import compute_trajectory
+from core.analysis.trajectory_computer import compute_trajectory
 from backend.startup.database_logistics import get_connection
 # from core.output.report_serializer import save_timegraph_report
 
