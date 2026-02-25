@@ -26,8 +26,8 @@ def init_db (db_path: str) -> None:
             CREATE TABLE IF NOT EXISTS timegraph_reports (
                 report_id                TEXT PRIMARY KEY,
                 subject_id               TEXT NOT NULL,
-                marker_id                TEXT NOT NULL,
                 module_id                TEXT NOT NULL,
+                marker_id                TEXT NOT NULL,
                 requested_at             TEXT NOT NULL,
                 timeframe_from           TEXT NOT NULL,
                 timeframe_to             TEXT NOT NULL,
