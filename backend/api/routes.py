@@ -1,11 +1,15 @@
-# This sets up the FastAPI router, which is the HTTP layer via which the frontend and backend communicate. It contains
-# pydantic request modules so data is always in the right format, and defines 3 API endpoints
+# Defines the endpoints and pydantic request models that the application (app = fastAPI() from main.py) uses.
 
 import os
 from datetime import datetime, timezone
 from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+
+# from core.storage.archive_reader import read_timeseries
+# from core.analysis.trajectory import compute_trajectory
+from backend.startup.init_database import get_connection
+# from core.output.report_serializer import save_timegraph_report
 
 router = APIRouter()
 
@@ -32,17 +36,17 @@ class TimegraphRequest(BaseModel):
 
 #Routes
 @router.get("/registry")
-def get_registry(request: Request):
-    return request.app.state.registry
+def get_modules(request: Request):
+    return request.app.state.modules
 
 @router.get("/subjects")
 def get_subjects(request: Request):
     rawdata_root = request.app.state.rawdata_root
-    if not os.path.isdir(archive_root):
+    if not os.path.isdir(rawdata_root):
         return []
     return [
-        name for name in os.listdir(archive_root)
-        if os.path.isdir(os.dir.join(archive_root, name))
+        name for name in os.listdir(rawdata_root)
+        if os.path.isdir(os.dir.join(rawdata_root, name))
     ]
 
 # THe following returns a list of ojects with profile data instead of the subject's directory name (subject_001 etc.)
@@ -51,13 +55,13 @@ def get_subjects(request: Request):
   
 #   @router.get("/subjects")
 #   def get_subjects(request: Request):
-#       archive_root = request.app.state.archive_root
-#       if not os.path.isdir(archive_root):
+#       rawdata_root = request.app.state.rawdata_root
+#       if not os.path.isdir(rawdata_root):
 #           return []
 
 #       subjects = []
-#       for subject_id in os.listdir(archive_root):
-#           subject_path = os.path.join(archive_root, subject_id)
+#       for subject_id in os.listdir(rawdata_root):
+#           subject_path = os.path.join(rawdata_root, subject_id)
 #           if not os.path.isdir(subject_path):
 #               continue
 

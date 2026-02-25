@@ -14,7 +14,7 @@
 import json
 import os
 
-def load_registry(registry_path: str) -> dict:
+def load_modules(registry_path: str) -> dict:
     if not os.path.exists(registry_path):                                         
         raise RuntimeError(
             f"No module registry file found at: {registry_path}. Please make sure it exists and restart the server."
