@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.startup.module_loader import load_modules
-from backend.startup.init_database import init_db
+from backend.startup.database_logistics import init_db
 from api.routes import router
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
