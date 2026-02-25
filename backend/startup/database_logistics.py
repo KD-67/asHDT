@@ -10,7 +10,7 @@ def init_db (db_path: str) -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS subjects (
                 id          INTEGER PRIMARY KEY,
-                subject_id  TEXT,
+                subject_id  TEXT UNIQUE,
                 last_name   TEXT,
                 first_name  TEXT,
                 sex         TEXT,

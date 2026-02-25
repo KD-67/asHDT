@@ -6,10 +6,10 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from core.storage.data_reader import read_timeseries
-from core.analysis.trajectory_computer import compute_trajectory
+from backend.core.storage.data_reader import read_timeseries
+from backend.core.analysis.trajectory_computer import compute_trajectory
 from backend.startup.database_logistics import get_connection
-from core.output.report_generator import save_timegraph_report
+from backend.core.output.report_generator import save_timegraph_report
 
 router = APIRouter()
 
@@ -46,7 +46,7 @@ def get_subjects(request: Request):
         return []
     return [
         name for name in os.listdir(rawdata_root)
-        if os.path.isdir(os.dir.join(rawdata_root, name))
+        if os.path.isdir(os.path.join(rawdata_root, name))
     ]
 
 # THe following returns a list of ojects with profile data instead of the subject's directory name (subject_001 etc.)
@@ -124,10 +124,10 @@ def post_timegraph(body: TimegraphRequest, request: Request):
             raise HTTPException(status_code=422, detail = f"trajectory could not be computed: {e}")
     # Build report metadata and pass to save_timegraph_report()
     subject_id = body.subject_id
+    requested_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     date_str = requested_at.split("T")[0] # Extract just the data
     short_uuid = str(uuid4())[:8]  # First 8 characters of UUID
     report_id = str(f"{subject_id}-{date_str}-{short_uuid}") # Resolves as: "subject_001-2026-02-23-550e8400"
-    requested_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     timeframe_dict = {"from": body.timeframe.start_time, "to": body.timeframe.end_time}
     fitting_dict   = {"polynomial_degree": body.fitting.polynomial_degree}
 
@@ -148,7 +148,7 @@ def post_timegraph(body: TimegraphRequest, request: Request):
         # Ensure subject row exists in database, and return data needed for frontend to render chart    
     with get_connection(db_path) as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO subjects (subject_id, created_at) VALUES (?, ?)"
+            "INSERT OR IGNORE INTO subjects (subject_id, created_at) VALUES (?, ?)",
             (body.subject_id, requested_at),
         )
     return {

@@ -5,7 +5,7 @@
 
 import json
 import os
-from startup.database_logistics import get_connection
+from backend.startup.database_logistics import get_connection
 
 # All context needed to describe a report
 def save_timegraph_report(

@@ -8,14 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.startup.module_loader import load_modules
 from backend.startup.database_logistics import init_db
-from api.routes import router
+from backend.api.routes import router
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR     = os.path.join(BASE_DIR, "..", "data")                                 # resolves to: "c:\Users\kevin\proj\asHDT\backend"
 DB_PATH      = os.path.join(DATA_DIR, "asHDT.db")                                   # resolves to: "c:\Users\kevin\proj\asHDT\backend\..\data"
 RAWDATA_ROOT = os.path.join(DATA_DIR, "raw_data")                                   # resolves to: "c:\Users\kevin\proj\asHDT\backend\..\data\asHDT.db"
 REPORTS_ROOT = os.path.join(DATA_DIR, "reports")                                    # resolves to: "c:\Users\kevin\proj\asHDT\backend\..\data\reports"
-MODULES_PATH = os.path.join(BASE_DIR, "..", "startup", "module_list.json")          # resolves to: "c:\Users\kevin\proj\asHDT\backend\..\startup\module_list.json"
+MODULES_PATH = os.path.join(BASE_DIR, "startup", "module_list.json")          # resolves to: "c:\Users\kevin\proj\asHDT\backend\startup\module_list.json"
 
 app = FastAPI()
 app.add_middleware(
