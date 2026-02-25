@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 # from core.storage.archive_reader import read_timeseries
 # from core.analysis.trajectory import compute_trajectory
-from backend.startup.init_database import get_connection
+from backend.startup.database_logistics import get_connection
 # from core.output.report_serializer import save_timegraph_report
 
 router = APIRouter()
@@ -144,8 +144,8 @@ def post_timegraph(body: TimegraphRequest, request: Request):
         fitting=fitting_dict,
         trajectory_result=trajectory_result,
     )
-
-    # Ensure subject row exists in database, and return data needed for frontend to render chart
+        
+        # Ensure subject row exists in database, and return data needed for frontend to render chart    
     with get_connection(db_path) as conn:
         conn.execute(
             "INSERT OR IGNORE INTO subjects (subject_id, created_at) VALUES (?, ?)"

@@ -37,6 +37,7 @@ def init_db (db_path: str) -> None:
                 vulnerability_margin     REAL NOT NULL
             )
         """)
+
 # Opens connection to the SQLite db defined at db_path. sqlite.row makes columns accessible by name, not just by index position
 def get_connection(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
