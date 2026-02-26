@@ -35,7 +35,7 @@ class TimegraphRequest(BaseModel):
     fitting: FittingModel
 
 #Routes
-@router.get("/registry")
+@router.get("/modules")
 def get_modules(request: Request):
     return request.app.state.modules
 
