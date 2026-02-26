@@ -49,7 +49,7 @@ def get_subjects(request: Request):
         if os.path.isdir(os.path.join(rawdata_root, name))
     ]
 
-# THe following returns a list of ojects with profile data instead of the subject's directory name (subject_001 etc.)
+# THe following returns a list of objects with profile data instead of the subject's directory name (subject_001 etc.)
 
 #   import json                                                                                                                                                                                                                
   

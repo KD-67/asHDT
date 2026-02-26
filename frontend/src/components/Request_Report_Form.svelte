@@ -26,6 +26,10 @@
 
     loadSubjects();
     loadModules();
+
+    function handleSubmit() {
+
+    }
 </script>
 
 <form>
@@ -56,38 +60,45 @@
         
         <label for="tel">Phone number</label>
         <input type="number" name="phone">
+
+        <label for="notes">Notes</label>
+        <input type="textarea" name="notes">
         
-        <button>Create new user</button>
+        <button on:click={handleSubmit}>Create new user</button>
     </fieldset>
 
-    <fieldset>
-        <legend>Select Subject</legend>
-        <select bind:value={selected_subject}>
-            <option value="">-- select subject --</option>
-            {#each subjects as subject}
-                <option value={subject}>{subject}</option>
-            {/each}
-        </select>
-    </fieldset>
 
     <fieldset>
-        <legend>Select Module</legend>
-        <select bind:value={selected_module} on:change={onModuleChange}>
-            <option value="">-- select module --</option>
-            {#each modules as module}
-                <option value={module.module_id}>{module.module_id}</option>
-            {/each}
-        </select>
-    </fieldset>
+    <legend>Select existing user</legend>
+        <fieldset>
+            <legend>Select Subject</legend>
+            <select bind:value={selected_subject}>
+                <option value="">-- select subject --</option>
+                {#each subjects as subject}
+                    <option value={subject}>{subject}</option>
+                {/each}
+            </select>
+        </fieldset>
 
-    <fieldset>
-        <legend>Select Marker</legend>
-        <select bind:value={selected_marker} disabled={!selected_module}>
-            <option value="">-- select marker --</option>
-            {#each markers as marker}
-                <option value={marker.marker_id}>{marker.marker_id}</option>
-            {/each}
-        </select>
+        <fieldset>
+            <legend>Select Module</legend>
+            <select bind:value={selected_module} on:change={onModuleChange}>
+                <option value="">-- select module --</option>
+                {#each modules as module}
+                    <option value={module.module_id}>{module.module_id}</option>
+                {/each}
+            </select>
+        </fieldset>
+
+        <fieldset>
+            <legend>Select Marker</legend>
+            <select bind:value={selected_marker} disabled={!selected_module}>
+                <option value="">-- select marker --</option>
+                {#each markers as marker}
+                    <option value={marker.marker_id}>{marker.marker_id}</option>
+                {/each}
+            </select>
+        </fieldset>
     </fieldset>
 </form>
 
