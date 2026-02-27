@@ -2,7 +2,8 @@
     let loading = false;
 
     let subjects = [];
-    let subjectProfile = {};
+    let subject_profile = {};
+    let subject_names = {};
     let modules = [];
     let markers = [];
 
@@ -14,6 +15,12 @@
         loading = true;
         const response = await fetch("http://localhost:8000/subjects");
         subjects = await response.json();
+        // fetch profile of each subject
+        for (const subject of subjects) {
+            const res = await fetch(`http://localhost:8000/subjects/${subject}/profile`);
+            const profile = await res.json();
+            subject_names[subject] = profile.first_name + " " + profile.last_name + " // ID: (" + profile.subject_id + ")";
+        }
         loading = false;
     }
 
@@ -21,7 +28,7 @@
         loading = true;
         try {
             const response = await fetch(`http://localhost:8000/subjects/${subjectID}/profile`);
-            subjectProfile = await response.json();
+            subject_profile = await response.json();
         } catch (error) {
             console.error("Failed to fetch profile:", error);
         } finally {
@@ -92,9 +99,8 @@
         <fieldset>
             <legend>Select Subject</legend>
             <select bind:value={selected_subject}>
-                <option value="">-- select subject --</option>
                 {#each subjects as subject}
-                    <option value={subject}>{subject}</option>
+                    <option value={subject}>{subject_names[subject] ?? subject}</option>
                 {/each}
             </select>
         </fieldset>
@@ -121,7 +127,7 @@
     </fieldset>
 </form>
 
-  <div>{JSON.stringify(subjectProfile)}</div>  
+  <div>{JSON.stringify(subject_profile)}</div>  
 
 <style>
     
