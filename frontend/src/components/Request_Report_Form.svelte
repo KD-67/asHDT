@@ -7,9 +7,24 @@
     let modules = [];
     let markers = [];
 
+
     let selected_subject = "";
     let selected_module = "";
     let selected_marker = "";
+    let selected_start_time = [];
+    let selected_end_time = [];
+    let selected_polynomial_degree;
+    let selected_healthy_min;
+    let selected_healthy_max;
+    let selected_vulnerability_margin;
+
+    let new_last_name = "";
+    let new_first_name = "";
+    let new_sex = "";
+    let new_dob = [];
+    let new_email = "";
+    let new_phone = "";
+    let new_notes = "";
 
     async function loadSubjects() {
         loading = true;
@@ -52,64 +67,26 @@
         selected_marker = "";
     }
 
-
-
     loadSubjects();
     loadModules();
-
-    loadSubjectProfile("subject_001");
 </script>
 
-<form>
-    <fieldset>
-        <legend>New user</legend>
-        
-        <label for="last_name">Last name</label>
-        <input type="text" name="last_name">
-        
-        <label for="first_name">First name</label>
-        <input type="text" name="first_name">
-       
-        <fieldset>
-            <legend>Sex</legend>
-
-            <label for="sex_f">Female</label>
-            <input type="radio" name="sex_f">
-
-            <label for="sex_m">Male</label>
-            <input type="radio" name="sex_m">
-        </fieldset>
-
-        <label for="dob_name">Date of birth</label>
-        <input type="date" name="dob">
-
-        <label for="email">Email address</label>
-        <input type="text" name="email">
-        
-        <label for="tel">Phone number</label>
-        <input type="number" name="phone">
-
-        <label for="notes">Notes</label>
-        <input type="textarea" name="notes">
-        
-        <button>Create new user</button>
-    </fieldset>
-
-
-    <fieldset>
-    <legend>Select existing user</legend>
-        <fieldset>
+<form id="generate_report_form">
+    <fieldset id="generate_timegraph_from_existing_data" style='background:lightgreen'>
+    <legend style="font-size: large;">Select existing user</legend>
+        <fieldset id="subject_selector">
             <legend>Select Subject</legend>
             <select bind:value={selected_subject}>
                 {#each subjects as subject}
                     <option value={subject}>{subject_names[subject] ?? subject}</option>
                 {/each}
             </select>
+            <button type='button' on:click={() => loadSubjectProfile(selected_subject)}>Show selected user profile</button>
         </fieldset>
 
-        <fieldset>
+        <fieldset id="module_selector">
             <legend>Select Module</legend>
-            <select bind:value={selected_module} on:change={onModuleChange}>
+            <select bind:value={selected_module} disabled={!selected_subject} on:change={onModuleChange}>
                 <option value="">-- select module --</option>
                 {#each modules as module}
                     <option value={module.module_id}>{module.module_id}</option>
@@ -117,7 +94,7 @@
             </select>
         </fieldset>
 
-        <fieldset>
+        <fieldset id="marker_selector">
             <legend>Select Marker</legend>
             <select bind:value={selected_marker} disabled={!selected_module}>
                 <option value="">-- select marker --</option>
@@ -126,10 +103,87 @@
                 {/each}
             </select>
         </fieldset>
+
+        <fieldset id="timeframe_selector">
+            <legend>Select timeframe</legend>
+            <label for="starttime">From</label>
+            <input id="starttime" type="datetime-local" bind:value={selected_start_time} required />
+            <label for="endtime">To</label>
+            <input id="endtime" type="datetime-local" bind:value={selected_end_time} required />
+        </fieldset>
+
+        <fieldset name="polynomial_degree_selector">
+            <legend>Select polynomial degree</legend>
+            <label for="polynomial_degree_selector"></label>
+            <input name="polynomial_degree_selector" type="range" min="1" max="5" step="1" bind:value={selected_polynomial_degree}/>
+            <p>{selected_polynomial_degree}</p>
+        </fieldset>
+
+        <fieldset>
+            <legend>Select zone boundaries</legend>
+            <label for="selected_healthy_min">Healthy minimum:</label>
+            <input name="healthy_min_selector" type="number" bind:value={selected_healthy_min} required/>
+
+            <label for="selected_healthy_max">Healthy maximum:</label>
+            <input name="healthy_max_selector" type="number" bind:value={selected_healthy_max} required/>
+
+            <label for="selected_vulnerability_margin">Vulnerability margin:</label>
+            <input name="vulnerability_margin_selector" type="number" bind:value={selected_vulnerability_margin} required/>
+        </fieldset>
+
+        <button type="button">Request report</button>
     </fieldset>
 </form>
 
-  <div>{JSON.stringify(subject_profile)}</div>  
+<br>
+
+<div style="border: 1px solid black; background:lightyellow">
+  <h4>Selected profile:</h4>
+    {JSON.stringify(subject_profile)}
+ </div>  
+
+  <br>
+
+<form id="generate_new_subject_form">
+
+    <fieldset style='background:lightblue'>
+        <legend style="font-size: large;">New user</legend>
+        
+        <label for="last_name">Last name</label>
+        <input type="text" id="last_name" bind:value={new_last_name}>
+        
+        <label for="first_name">First name</label>
+        <input type="text" id="first_name" bind:value={new_first_name}>
+       
+        <fieldset name="sex_declarer">
+            <legend>Sex</legend>
+
+            <label for="sex_f">Female</label>
+            <input type="radio" name="sex" id="sex_f" value="F" bind:group={new_sex}>
+                <br>
+            <label for="sex_m">Male</label>
+            <input type="radio" name="sex" id="sex_m" value="M" bind:group={new_sex}>
+                <br>
+            <label for="sex_m">Undeclared</label>
+            <input type="radio" name="sex" id="sex_u" value="Undeclared" bind:group={new_sex}>
+        </fieldset>
+
+        <label for="dob_name">Date of birth</label>
+        <input type="date" id="dob" bind:value={new_dob}>
+
+        <label for="email">Email address</label>
+        <input type="text" id="email" bind:value={new_email}>
+        
+        <label for="tel">Phone number</label>
+        <input type="number" id="phone" bind:value={new_phone}>
+
+        <label for="notes">Notes</label>
+        <input type="textarea" id="notes" bind:value={new_notes}>
+        
+        <button type="button">Create new user</button>
+    </fieldset>
+
+</form>
 
 <style>
     
