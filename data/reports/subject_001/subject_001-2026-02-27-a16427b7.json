@@ -1,0 +1,93 @@
+{
+  "report_id": "subject_001-2026-02-27-a16427b7",
+  "subject_id": "subject_001",
+  "module_id": "fitness",
+  "marker_id": "vo2max",
+  "requested_at": "2026-02-27T15:47:16.550837Z",
+  "timeframe": {
+    "from": "2026-02-01T15:46:00.000Z",
+    "to": "2026-02-28T15:46:00.000Z"
+  },
+  "zone_boundaries": {
+    "healthy_min": 0.0,
+    "healthy_max": 1.0,
+    "vulnerability_margin": 1.0
+  },
+  "fitting": {
+    "polynomial_degree": 2
+  },
+  "result": {
+    "datapoints": [
+      {
+        "timestamp": "2026-02-02T08:00:00Z",
+        "x_hours": 0.0,
+        "raw_value": 47.2,
+        "data_quality": "good",
+        "health_score": -92.4,
+        "fitted_value": -92.5,
+        "zone": "pathology",
+        "f_prime": 0.014286,
+        "f_double_prime": 1.4e-05,
+        "trajectory_state": 20,
+        "time_to_transition_hours": 2724.0965
+      },
+      {
+        "timestamp": "2026-02-09T08:00:00Z",
+        "x_hours": 168.0,
+        "raw_value": 46.1,
+        "data_quality": "good",
+        "health_score": -90.2,
+        "fitted_value": -89.9,
+        "zone": "pathology",
+        "f_prime": 0.016667,
+        "f_double_prime": 1.4e-05,
+        "trajectory_state": 20,
+        "time_to_transition_hours": 2724.0965
+      },
+      {
+        "timestamp": "2026-02-16T08:00:00Z",
+        "x_hours": 336.0,
+        "raw_value": 44.3,
+        "data_quality": "degraded",
+        "health_score": -86.6,
+        "fitted_value": -86.9,
+        "zone": "pathology",
+        "f_prime": 0.019048,
+        "f_double_prime": 1.4e-05,
+        "trajectory_state": 20,
+        "time_to_transition_hours": 2724.0965
+      },
+      {
+        "timestamp": "2026-02-23T08:00:00Z",
+        "x_hours": 504.0,
+        "raw_value": 42.8,
+        "data_quality": "degraded",
+        "health_score": -83.6,
+        "fitted_value": -83.5,
+        "zone": "pathology",
+        "f_prime": 0.021429,
+        "f_double_prime": 1.4e-05,
+        "trajectory_state": 20,
+        "time_to_transition_hours": 2724.0965
+      }
+    ],
+    "fit_metadata": {
+      "coefficients": [
+        7.086167800453159e-06,
+        0.014285714285714544,
+        -92.50000000000003
+      ],
+      "t0_iso": "2026-02-02T08:00:00Z",
+      "polynomial_degree": 2,
+      "normalization": {
+        "healthy_min": 0.0,
+        "healthy_max": 1.0,
+        "mid": 0.5,
+        "half_range": 0.5
+      },
+      "zone_boundaries": {
+        "vulnerability_margin": 1.0
+      }
+    }
+  }
+}

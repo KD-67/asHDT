@@ -194,6 +194,6 @@ def compute_trajectory(
     }
 
     return {
-        "data_points":  result_points,
+        "datapoints":  result_points,
         "fit_metadata": fit_metadata,
     }

@@ -1,0 +1,20 @@
+{
+  "subject_id": "001",
+  "module_id": "vtf_stress_test",
+  "marker_id": "vo2max",
+  "unit": "ml/kg/min",
+  "entries": [
+    { "timestamp": "2026-01-05T08:00:00Z", "file": "2026-01-05T08-00-00Z.json" },
+    { "timestamp": "2026-01-12T08:00:00Z", "file": "2026-01-12T08-00-00Z.json" },
+    { "timestamp": "2026-01-19T08:00:00Z", "file": "2026-01-19T08-00-00Z.json" },
+    { "timestamp": "2026-01-26T08:00:00Z", "file": "2026-01-26T08-00-00Z.json" },
+    { "timestamp": "2026-02-02T08:00:00Z", "file": "2026-02-02T08-00-00Z.json" },
+    { "timestamp": "2026-02-09T08:00:00Z", "file": "2026-02-09T08-00-00Z.json" },
+    { "timestamp": "2026-02-16T08:00:00Z", "file": "2026-02-16T08-00-00Z.json" },
+    { "timestamp": "2026-02-23T08:00:00Z", "file": "2026-02-23T08-00-00Z.json" },
+    { "timestamp": "2026-03-02T08:00:00Z", "file": "2026-03-02T08-00-00Z.json" },
+    { "timestamp": "2026-03-09T08:00:00Z", "file": "2026-03-09T08-00-00Z.json" },
+    { "timestamp": "2026-03-16T08:00:00Z", "file": "2026-03-16T08-00-00Z.json" },
+    { "timestamp": "2026-03-23T08:00:00Z", "file": "2026-03-23T08-00-00Z.json" }
+  ]
+}

@@ -1,4 +1,7 @@
 <script>
+    import { createEventDispatcher } from "svelte";
+    const dispatch = createEventDispatcher();
+
     let loading = false;
 
     let subjects = [];
@@ -8,15 +11,16 @@
     let markers = [];
 
 
-    let selected_subject = "";
-    let selected_module = "";
-    let selected_marker = "";
-    let selected_start_time = [];
-    let selected_end_time = [];
-    let selected_polynomial_degree;
-    let selected_healthy_min;
-    let selected_healthy_max;
-    let selected_vulnerability_margin;
+
+    let selected_subject = "subject_001";
+    let selected_module = "fitness";
+    let selected_marker = "vo2max";
+    let selected_start_time = "2026-01-01T00:00";
+    let selected_end_time = "2026-03-31T00:00";
+    let selected_polynomial_degree = 2;
+    let selected_healthy_min = 0;
+    let selected_healthy_max = 1;
+    let selected_vulnerability_margin = 1;
 
     let new_last_name = "";
     let new_first_name = "";
@@ -65,6 +69,40 @@
         const module = modules.find(m => m.module_id === selected_module);
         markers = module ? module.markers : [];  // update markers when module changes
         selected_marker = "";
+    }
+
+    async function submitTimegraphRequest() {
+        const payload = {
+            subject_id: selected_subject,
+            module_id: selected_module,
+            marker_id: selected_marker,
+            timeframe: {
+                start_time: new Date(selected_start_time).toISOString(),
+                end_time: new Date(selected_end_time).toISOString()
+            },
+            zone_boundaries: {
+                healthy_min: selected_healthy_min,
+                healthy_max: selected_healthy_max,
+                vulnerability_margin: selected_vulnerability_margin
+            },
+            fitting: {
+                polynomial_degree: selected_polynomial_degree
+            }
+        };
+        try {
+            const response = await fetch("http://localhost:8000/timegraph", {
+                method: "POST",
+                headers: {"Content-Type":"application/json"},
+                body: JSON.stringify(payload)
+            });
+            const report = await response.json();
+
+            console.log("Report:", report);
+            sessionStorage.setItem("timegraph_report", JSON.stringify(report));
+            dispatch("reportSubmitted");  // This triggers the navigation in App.svelte
+        } catch (error) {
+            console.error("Failed to submit timegraph request:", error);
+        }
     }
 
     loadSubjects();
@@ -131,7 +169,7 @@
             <input name="vulnerability_margin_selector" type="number" bind:value={selected_vulnerability_margin} required/>
         </fieldset>
 
-        <button type="button">Request report</button>
+        <button type="button" on:click={submitTimegraphRequest}>Request report</button>
     </fieldset>
 </form>
 
