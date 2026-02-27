@@ -1,5 +1,8 @@
 <script>
+    let loading = false;
+
     let subjects = [];
+    let subjectProfile = {};
     let modules = [];
     let markers = [];
 
@@ -8,14 +11,30 @@
     let selected_marker = "";
 
     async function loadSubjects() {
+        loading = true;
         const response = await fetch("http://localhost:8000/subjects");
         subjects = await response.json();
+        loading = false;
+    }
+
+    async function loadSubjectProfile(subjectID) {
+        loading = true;
+        try {
+            const response = await fetch(`http://localhost:8000/subjects/${subjectID}/profile`);
+            subjectProfile = await response.json();
+        } catch (error) {
+            console.error("Failed to fetch profile:", error);
+        } finally {
+            loading = false
+        }
     }
 
     async function loadModules() {
+        loading = true;
         const response = await fetch("http://localhost:8000/modules");
         const data = await response.json();
         modules = data.modules;                  // registry returns { modules: [...] }
+        loading = false;
     }
 
     function onModuleChange() {
@@ -24,12 +43,12 @@
         selected_marker = "";
     }
 
+
+
     loadSubjects();
     loadModules();
 
-    function handleSubmit() {
-
-    }
+    loadSubjectProfile("subject_001");
 </script>
 
 <form>
@@ -64,7 +83,7 @@
         <label for="notes">Notes</label>
         <input type="textarea" name="notes">
         
-        <button on:click={handleSubmit}>Create new user</button>
+        <button>Create new user</button>
     </fieldset>
 
 
@@ -101,6 +120,8 @@
         </fieldset>
     </fieldset>
 </form>
+
+  <div>{JSON.stringify(subjectProfile)}</div>  
 
 <style>
     

@@ -1,6 +1,7 @@
 # Defines the endpoints and pydantic request models that the application (app = fastAPI() from main.py) uses.
 
 import os
+import json
 from datetime import datetime, timezone
 from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
@@ -35,10 +36,13 @@ class TimegraphRequest(BaseModel):
     fitting: FittingModel
 
 #Routes
+
+# Return module list
 @router.get("/modules")
 def get_modules(request: Request):
     return request.app.state.modules
 
+# Return subject directory list
 @router.get("/subjects")
 def get_subjects(request: Request):
     rawdata_root = request.app.state.rawdata_root
@@ -49,40 +53,17 @@ def get_subjects(request: Request):
         if os.path.isdir(os.path.join(rawdata_root, name))
     ]
 
-# THe following returns a list of objects with profile data instead of the subject's directory name (subject_001 etc.)
+# Return profile data of specified subject                                                                                                                                                                                      
+@router.get("/subjects/{subject_id}/profile")
+async def get_subject_profile(subject_id: str, request: Request):
+    profile_path = os.path.join(request.app.state.rawdata_root, subject_id, "profile.json")
+    if not os.path.exists(profile_path):
+        raise HTTPException(status_code=404, detail="Subject profile not found")
+    with open(profile_path, 'r') as f:
+        profile_data = json.load(f)
+    return profile_data
 
-#   import json                                                                                                                                                                                                                
-  
-#   @router.get("/subjects")
-#   def get_subjects(request: Request):
-#       rawdata_root = request.app.state.rawdata_root
-#       if not os.path.isdir(rawdata_root):
-#           return []
-
-#       subjects = []
-#       for subject_id in os.listdir(rawdata_root):
-#           subject_path = os.path.join(rawdata_root, subject_id)
-#           if not os.path.isdir(subject_path):
-#               continue
-
-#           profile_path = os.path.join(subject_path, "profile.json")
-#           if os.path.isfile(profile_path):
-#               try:
-#                   with open(profile_path, "r") as f:
-#                       profile = json.load(f)
-#                   # Extract whatever fields you want from profile
-#                   subjects.append({
-#                       "subject_id": subject_id,
-#                       "name": profile.get("name"),
-#                       "age": profile.get("age"),
-#                       # Add more fields as needed
-#                   })
-#               except (json.JSONDecodeError, IOError):
-#                   pass  # Skip if profile.json is invalid
-
-#       return subjects
-
-
+#  Return calculation results needed to post timegraph 
 @router.post("/timegraph")
 def post_timegraph(body: TimegraphRequest, request: Request):
     db_path = request.app.state.db_path
@@ -144,7 +125,6 @@ def post_timegraph(body: TimegraphRequest, request: Request):
         fitting=fitting_dict,
         trajectory_result=trajectory_result,
     )
-        
         # Ensure subject row exists in database, and return data needed for frontend to render chart    
     with get_connection(db_path) as conn:
         conn.execute(
