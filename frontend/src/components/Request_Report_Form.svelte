@@ -19,7 +19,9 @@
         for (const subject of subjects) {
             const res = await fetch(`http://localhost:8000/subjects/${subject}/profile`);
             const profile = await res.json();
-            subject_names[subject] = profile.first_name + " " + profile.last_name + " // ID: (" + profile.subject_id + ")";
+            if (profile.first_name && profile.last_name){
+                subject_names[subject] = profile.first_name + " " + profile.last_name + " // ID: (" + profile.subject_id + ")";
+            }          
         }
         loading = false;
     }
