@@ -153,20 +153,20 @@
         <fieldset name="polynomial_degree_selector">
             <legend>Select polynomial degree</legend>
             <label for="polynomial_degree_selector"></label>
-            <input name="polynomial_degree_selector" type="range" min="1" max="5" step="1" bind:value={selected_polynomial_degree}/>
+            <input id="polynomial_degree_selector" type="range" min="1" max="5" step="1" bind:value={selected_polynomial_degree}/>
             <p>{selected_polynomial_degree}</p>
         </fieldset>
 
         <fieldset>
             <legend>Select zone boundaries</legend>
-            <label for="selected_healthy_min">Healthy minimum:</label>
-            <input name="healthy_min_selector" type="number" bind:value={selected_healthy_min} required/>
+            <label for="healthy_min_selector">Healthy minimum:</label>
+            <input id="healthy_min_selector" type="number" bind:value={selected_healthy_min} required/>
 
-            <label for="selected_healthy_max">Healthy maximum:</label>
-            <input name="healthy_max_selector" type="number" bind:value={selected_healthy_max} required/>
+            <label for="healthy_max_selector">Healthy maximum:</label>
+            <input id="healthy_max_selector" type="number" bind:value={selected_healthy_max} required/>
 
-            <label for="selected_vulnerability_margin">Vulnerability margin:</label>
-            <input name="vulnerability_margin_selector" type="number" bind:value={selected_vulnerability_margin} required/>
+            <label for="vulnerability_margin_selector">Vulnerability margin:</label>
+            <input id="vulnerability_margin_selector" type="number" bind:value={selected_vulnerability_margin} required/>
         </fieldset>
 
         <button type="button" on:click={submitTimegraphRequest}>Request report</button>
@@ -202,17 +202,17 @@
             <label for="sex_m">Male</label>
             <input type="radio" name="sex" id="sex_m" value="M" bind:group={new_sex}>
                 <br>
-            <label for="sex_m">Undeclared</label>
+            <label for="sex_u">Undeclared</label>
             <input type="radio" name="sex" id="sex_u" value="Undeclared" bind:group={new_sex}>
         </fieldset>
 
-        <label for="dob_name">Date of birth</label>
+        <label for="dob">Date of birth</label>
         <input type="date" id="dob" bind:value={new_dob}>
 
         <label for="email">Email address</label>
         <input type="text" id="email" bind:value={new_email}>
         
-        <label for="tel">Phone number</label>
+        <label for="phone">Phone number</label>
         <input type="number" id="phone" bind:value={new_phone}>
 
         <label for="notes">Notes</label>

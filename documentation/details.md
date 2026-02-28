@@ -1,6 +1,6 @@
 **Run the backend from cli:**
-cd backend
-uvicorn main:app --reload --port 8000
+    # run from root directory:
+uvicorn backend.main:app --reload --port 8000
 
 ##### Run the frontend from cli:
 cd frontend
