@@ -1,7 +1,4 @@
 <script>
-    import { createEventDispatcher } from "svelte";
-    const dispatch = createEventDispatcher();
-
     let loading = false;
 
     let subjects = [];
@@ -98,8 +95,8 @@
             const report = await response.json();
 
             console.log("Report:", report);
-            sessionStorage.setItem("timegraph_report", JSON.stringify(report));
-            dispatch("reportSubmitted");  // This triggers the navigation in App.svelte
+            localStorage.setItem("timegraph_report", JSON.stringify(report));
+            window.open("http://localhost:5173/#timegraph", "_blank");
         } catch (error) {
             console.error("Failed to submit timegraph request:", error);
         }

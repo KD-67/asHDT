@@ -18,9 +18,7 @@
   </h1>
 
   {#if currentPage == "form"}
-  <RequestReportForm on:reportSubmitted={() => {
-    window.location.hash = "timegraph";
-  }}/>
+  <RequestReportForm />
   {:else if currentPage == "timegraph"}
     <Timegraph />
   {/if}
