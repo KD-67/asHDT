@@ -14,7 +14,7 @@ from backend.core.output.report_generator import save_timegraph_report
 
 router = APIRouter()
 
-# Pydantic request models
+# Pydantic request models for taking in timegraph report data
 class TimeframeModel(BaseModel):
     start_time: str
     end_time: str

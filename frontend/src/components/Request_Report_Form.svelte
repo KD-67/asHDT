@@ -7,8 +7,6 @@
     let modules = $state([]);
     let markers = $state([]);
 
-
-
     let selected_subject = $state("subject_001");
     let selected_module = $state("fitness");
     let selected_marker = $state("vo2max");
@@ -58,18 +56,18 @@
         loading = true;
         const response = await fetch("http://localhost:8000/modules");
         const data = await response.json();
-        modules = data.modules;                  // registry returns { modules: [...] }
+        modules = data.modules;                                                 // registry returns { modules: [...] }
         loading = false;
     }
 
     function onModuleChange() {
         const module = modules.find(m => m.module_id === selected_module);
-        markers = module ? module.markers : [];  // update markers when module changes
+        markers = module ? module.markers : [];                                 // update markers when module changes
         selected_marker = "";
     }
 
     async function submitTimegraphRequest() {
-        const payload = {
+        const payload = {                                                       // matches the pydantic request model from routes.py
             subject_id: selected_subject,
             module_id: selected_module,
             marker_id: selected_marker,
@@ -87,14 +85,13 @@
             }
         };
         try {
-            const response = await fetch("http://localhost:8000/timegraph", {
+            const response = await fetch("http://localhost:8000/timegraph", {   // sends the payload to the backend
                 method: "POST",
                 headers: {"Content-Type":"application/json"},
                 body: JSON.stringify(payload)
             });
             const report = await response.json();
 
-            console.log("Report:", report);
             localStorage.setItem("timegraph_report", JSON.stringify(report));
             window.open("http://localhost:5173/#timegraph", "_blank");
         } catch (error) {
@@ -105,6 +102,8 @@
     loadSubjects();
     loadModules();
 </script>
+
+<h2>Report Request Form</h2>
 
 <form id="generate_report_form">
     <fieldset id="generate_timegraph_from_existing_data" style='background:lightgreen'>
