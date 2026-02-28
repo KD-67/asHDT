@@ -3,7 +3,7 @@
       let reportData = {};
 
       onMount(() => {
-          const stored = sessionStorage.getItem("timegraph_report");
+          const stored = localStorage.getItem("timegraph_report");
           if (stored) {
               reportData = JSON.parse(stored);
           }

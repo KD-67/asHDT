@@ -1,31 +1,31 @@
 <script>
     let loading = false;
 
-    let subjects = [];
-    let subject_profile = {};
-    let subject_names = {};
-    let modules = [];
-    let markers = [];
+    let subjects = $state([]);
+    let subject_profile = $state({});
+    let subject_names = $state({});
+    let modules = $state([]);
+    let markers = $state([]);
 
 
 
-    let selected_subject = "subject_001";
-    let selected_module = "fitness";
-    let selected_marker = "vo2max";
-    let selected_start_time = "2026-01-01T00:00";
-    let selected_end_time = "2026-03-31T00:00";
-    let selected_polynomial_degree = 2;
-    let selected_healthy_min = 0;
-    let selected_healthy_max = 1;
-    let selected_vulnerability_margin = 1;
+    let selected_subject = $state("subject_001");
+    let selected_module = $state("fitness");
+    let selected_marker = $state("vo2max");
+    let selected_start_time = $state("2026-01-01T00:00");
+    let selected_end_time = $state("2026-03-31T00:00");
+    let selected_polynomial_degree = $state(2);
+    let selected_healthy_min = $state(0);
+    let selected_healthy_max = $state(1);
+    let selected_vulnerability_margin = $state(1);
 
-    let new_last_name = "";
-    let new_first_name = "";
-    let new_sex = "";
-    let new_dob = [];
-    let new_email = "";
-    let new_phone = "";
-    let new_notes = "";
+    let new_last_name = $state("");
+    let new_first_name = $state("");
+    let new_sex = $state("");
+    let new_dob = $state([]);
+    let new_email = $state("");
+    let new_phone = $state("");
+    let new_notes = $state("");
 
     async function loadSubjects() {
         loading = true;
@@ -116,6 +116,7 @@
                     <option value={subject}>{subject_names[subject] ?? subject}</option>
                 {/each}
             </select>
+            <p>Selected: {selected_subject}</p>
             <button type='button' on:click={() => loadSubjectProfile(selected_subject)}>Show selected user profile</button>
         </fieldset>
 
@@ -127,6 +128,7 @@
                     <option value={module.module_id}>{module.module_id}</option>
                 {/each}
             </select>
+            <p>Selected: {selected_module}</p>
         </fieldset>
 
         <fieldset id="marker_selector">
@@ -137,6 +139,7 @@
                     <option value={marker.marker_id}>{marker.marker_id}</option>
                 {/each}
             </select>
+            <p>Selected: {selected_marker}</p>
         </fieldset>
 
         <fieldset id="timeframe_selector">
@@ -145,25 +148,37 @@
             <input id="starttime" type="datetime-local" bind:value={selected_start_time} required />
             <label for="endtime">To</label>
             <input id="endtime" type="datetime-local" bind:value={selected_end_time} required />
+            <p>Selected: From {selected_start_time} to {selected_end_time}</p>
         </fieldset>
 
         <fieldset name="polynomial_degree_selector">
             <legend>Select polynomial degree</legend>
             <label for="polynomial_degree_selector"></label>
             <input id="polynomial_degree_selector" type="range" min="1" max="5" step="1" bind:value={selected_polynomial_degree}/>
-            <p>{selected_polynomial_degree}</p>
+            <p>Selected: {selected_polynomial_degree}</p>
         </fieldset>
 
         <fieldset>
             <legend>Select zone boundaries</legend>
-            <label for="healthy_min_selector">Healthy minimum:</label>
-            <input id="healthy_min_selector" type="number" bind:value={selected_healthy_min} required/>
 
-            <label for="healthy_max_selector">Healthy maximum:</label>
-            <input id="healthy_max_selector" type="number" bind:value={selected_healthy_max} required/>
+            <fieldset>
+                <label for="healthy_min_selector">Healthy minimum:</label>
+                <input id="healthy_min_selector" type="number" bind:value={selected_healthy_min} required/>
+                <p>Selected: {selected_healthy_max}</p>
+            </fieldset>
 
-            <label for="vulnerability_margin_selector">Vulnerability margin:</label>
-            <input id="vulnerability_margin_selector" type="number" bind:value={selected_vulnerability_margin} required/>
+            <fieldset>
+                <label for="healthy_max_selector">Healthy maximum:</label>
+                <input id="healthy_max_selector" type="number" bind:value={selected_healthy_max} required/>
+                <p>Selected: {selected_healthy_max}</p>
+            </fieldset>
+
+            <fieldset>
+                <label for="vulnerability_margin_selector">Vulnerability margin:</label>
+                <input id="vulnerability_margin_selector" type="number" bind:value={selected_vulnerability_margin} required/>
+                <p>Selected: {selected_vulnerability_margin}</p>
+            </fieldset>
+
         </fieldset>
 
         <button type="button" on:click={submitTimegraphRequest}>Request report</button>
