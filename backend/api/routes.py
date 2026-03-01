@@ -1,4 +1,9 @@
 # Defines the endpoints and pydantic request models that the application (app = fastAPI() from main.py) uses.
+# The current endpoints are:
+# 1. GET modules
+# 2. GET subjects
+# 3. GET subject profile data
+# 4. POST timegraph data  
 
 import os
 import json
@@ -63,7 +68,7 @@ async def get_subject_profile(subject_id: str, request: Request):
         profile_data = json.load(f)
     return profile_data
 
-#  Return calculation results needed to post timegraph 
+#  Return calculation results needed to post timegraph and also save them to the database
 @router.post("/timegraph")
 def post_timegraph(body: TimegraphRequest, request: Request):
     db_path = request.app.state.db_path

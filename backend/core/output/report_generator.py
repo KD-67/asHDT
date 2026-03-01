@@ -1,5 +1,5 @@
 # Simultaneously updates both the filesystem and the database every time a new analysis is performed. 
-#   -In /backend/data/reports: creates a json  with the timestamp, user-inputs, and computed results. Creates new subject-specific directory if one does not already exist. 
+#   -In data/reports: creates a json  with the timestamp, user-inputs, and computed results. Creates new subject-specific directory if one does not already exist. 
 #   -In timegraph_reports SQLite db table: creates new entry with all inputs needed to remake the 
 #       exact same calculation (assuming raw_data files remain unchanged) 
 
