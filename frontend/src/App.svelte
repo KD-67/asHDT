@@ -5,7 +5,7 @@
     import NewUserForm from "./components/new_user_form.svelte";
     import AddModulePage from "./components/add_module_page.svelte";
     import Help from "./components/help.svelte";                                                                              
-    import Timegraph from "./routes/timegraph_report_page.svelte";                                                                      
+    import Timegraph from "./components/timegraph_report_page.svelte";                                                                      
     
 
     let currentPage = window.location.hash.slice(1) || "home";

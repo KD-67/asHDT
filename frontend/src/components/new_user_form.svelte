@@ -11,11 +11,11 @@
 </script>
 
 <main>
-    <form id="generate_new_subject_form">
+    <div id="main_container">
 
-        <fieldset style='background:lightblue'>
-            <legend style="font-size: large;">New user</legend>
-            
+    <form id="generate_new_subject_form">
+            <h2>Create new user:</h2>
+
             <label for="last_name">Last name</label>
             <input type="text" id="last_name" bind:value={new_last_name}>
             
@@ -25,14 +25,14 @@
             <fieldset name="sex_declarer">
                 <legend>Sex</legend>
 
-                <label for="sex_f">Female</label>
                 <input type="radio" name="sex" id="sex_f" value="F" bind:group={new_sex}>
+                <label for="sex_f">Female</label>
                     <br>
-                <label for="sex_m">Male</label>
                 <input type="radio" name="sex" id="sex_m" value="M" bind:group={new_sex}>
+                <label for="sex_m">Male</label>
                     <br>
-                <label for="sex_u">Undeclared</label>
                 <input type="radio" name="sex" id="sex_u" value="Undeclared" bind:group={new_sex}>
+                <label for="sex_u">Undeclared</label>
             </fieldset>
 
             <label for="dob">Date of birth</label>
@@ -46,10 +46,43 @@
 
             <label for="notes">Notes</label>
             <input type="textarea" id="notes" bind:value={new_notes}>
-            
-            <button type="button">Create new user</button>
-        </fieldset>
+                        
     </form>
+
+    <div id="preview_container">
+        <h4>Preview:</h4>
+
+    <p> Name: {new_last_name} {new_first_name}</p>
+    <p>Sex: {new_sex}</p>
+    <p>DOB: {new_dob}</p>
+    <p>Email: {new_email}</p>
+    <p>Phone: {new_phone}</p>
+    <p>Notes: {new_notes}</p>
+    <button type="button">Create new user</button>
+    </div>
+
+    </div>
 </main>
 
-<style></style>
+<style>
+    #main_container {
+        border: 1px solid black;
+        display: flex;
+    }
+
+    form {
+        background-color: lightblue;
+        padding: 15px 10px;
+        border: 1px solid black;
+    }
+
+    fieldset {
+        border: 1px solid black;
+    }
+
+    #preview_container {
+        border: 1px solid black;
+        margin: 5px;
+        padding: 3px;
+    }
+</style>
