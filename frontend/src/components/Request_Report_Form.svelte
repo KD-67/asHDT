@@ -17,13 +17,13 @@
     let selected_healthy_max = $state(1);
     let selected_vulnerability_margin = $state(0.1);
 
-    let new_last_name = $state("");
-    let new_first_name = $state("");
-    let new_sex = $state("");
-    let new_dob = $state([]);
-    let new_email = $state("");
-    let new_phone = $state("");
-    let new_notes = $state("");
+    // let new_last_name = $state("");
+    // let new_first_name = $state("");
+    // let new_sex = $state("");
+    // let new_dob = $state([]);
+    // let new_email = $state("");
+    // let new_phone = $state("");
+    // let new_notes = $state("");
 
     async function loadSubjects() {
         loading = true;
@@ -62,7 +62,7 @@
 
     function onModuleChange() {
         const module = modules.find(m => m.module_id === selected_module);
-        markers = module ? module.markers : [];                                 // update markers when module changes
+        markers = module ? module.markers : [];                                 // update available markers when module changes
         selected_marker = "";
     }
 
@@ -116,12 +116,12 @@
                     {/each}
                 </select>
                 <p>(Selected: {selected_subject})</p>
-                <button type='button' on:click={() => loadSubjectProfile(selected_subject)}>Show selected user profile</button>
+                <button type='button' onclick={() => loadSubjectProfile(selected_subject)}>Show selected user profile</button>
             </fieldset>
 
             <fieldset id="module_selector">
                 <legend>Select Module</legend>
-                <select bind:value={selected_module} disabled={!selected_subject} on:change={onModuleChange}>
+                <select bind:value={selected_module} disabled={!selected_subject} onchange={onModuleChange}>
                     <option value="">-- select module --</option>
                     {#each modules as module}
                         <option value={module.module_id}>{module.module_id}</option>
@@ -185,7 +185,7 @@
             </fieldset>
             
 
-            <button type="button" on:click={submitTimegraphRequest}>Request report</button>
+            <button type="button" onclick={submitTimegraphRequest}>Request report</button>
         </fieldset>
 </form>
 
@@ -198,7 +198,7 @@
 
   <br>
 
-<form id="generate_new_subject_form">
+<!-- <form id="generate_new_subject_form">
 
     <fieldset style='background:lightblue'>
         <legend style="font-size: large;">New user</legend>
@@ -236,7 +236,7 @@
         
         <button type="button">Create new user</button>
     </fieldset>
-</form>
+</form> -->
 
 <style>
     .input_form {
