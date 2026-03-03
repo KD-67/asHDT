@@ -3,7 +3,10 @@
 # 1. GET modules
 # 2. GET subjects
 # 3. GET subject profile data
-# 4. POST timegraph data  
+# 4. POST subjects (create)
+# 5. PUT subjects (edit)
+# 6. DELETE subjects
+# 7. POST timegraph data
 
 import os
 import json
@@ -41,6 +44,15 @@ class TimegraphRequest(BaseModel):
     zone_boundaries: ZoneBoundariesModel
     fitting: FittingModel
 
+class SubjectProfile(BaseModel):
+    first_name: str
+    last_name: str
+    sex: str
+    dob: str
+    email: str
+    phone: str
+    notes: str = ""
+
 #Routes
 
 # Return module list
@@ -69,6 +81,71 @@ async def get_subject_profile(subject_id: str, request: Request):
     if row is None:
         raise HTTPException(status_code=404, detail="Subject profile not found")
     return dict(row)
+
+# Create a new subject: auto-generate subject_id, create directory, write profile.json, insert into DB
+@router.post("/subjects", status_code=201)
+def post_subject(body: SubjectProfile, request: Request):
+    rawdata_root = request.app.state.rawdata_root
+    db_path = request.app.state.db_path
+    existing = [
+        name for name in os.listdir(rawdata_root)
+        if os.path.isdir(os.path.join(rawdata_root, name))
+    ] if os.path.isdir(rawdata_root) else []
+    max_num = 0
+    for name in existing:
+        parts = name.split("_")
+        if len(parts) == 2 and parts[0] == "subject" and parts[1].isdigit():
+            max_num = max(max_num, int(parts[1]))
+    subject_id = f"subject_{str(max_num + 1).zfill(3)}"
+    subject_dir = os.path.join(rawdata_root, subject_id)
+    os.makedirs(subject_dir, exist_ok=True)
+    profile = {"subject_id": subject_id, **body.model_dump()}
+    with open(os.path.join(subject_dir, "profile.json"), "w", encoding="utf-8") as f:
+        json.dump(profile, f, indent=2)
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "INSERT INTO subjects (subject_id, first_name, last_name, sex, dob, email, phone, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (subject_id, body.first_name, body.last_name, body.sex, body.dob, body.email, body.phone, body.notes),
+        )
+        conn.commit()
+    return {"subject_id": subject_id}
+
+# Edit an existing subject's profile: update profile.json and DB row
+@router.put("/subjects/{subject_id}")
+def put_subject(subject_id: str, body: SubjectProfile, request: Request):
+    rawdata_root = request.app.state.rawdata_root
+    db_path = request.app.state.db_path
+    profile_path = os.path.join(rawdata_root, subject_id, "profile.json")
+    if not os.path.isfile(profile_path):
+        raise HTTPException(status_code=404, detail="Subject not found")
+    profile = {"subject_id": subject_id, **body.model_dump()}
+    with open(profile_path, "w", encoding="utf-8") as f:
+        json.dump(profile, f, indent=2)
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "UPDATE subjects SET first_name=?, last_name=?, sex=?, dob=?, email=?, phone=?, notes=? WHERE subject_id=?",
+            (body.first_name, body.last_name, body.sex, body.dob, body.email, body.phone, body.notes, subject_id),
+        )
+        conn.commit()
+    return {"subject_id": subject_id}
+
+# Delete a subject: remove DB row and move directory to deleted_subjects/
+@router.delete("/subjects/{subject_id}")
+def delete_subject(subject_id: str, request: Request):
+    import shutil
+    rawdata_root = request.app.state.rawdata_root
+    db_path = request.app.state.db_path
+    subject_dir = os.path.join(rawdata_root, subject_id)
+    if not os.path.isdir(subject_dir):
+        raise HTTPException(status_code=404, detail="Subject not found")
+    deleted_root = os.path.join(os.path.dirname(rawdata_root), "deleted_subjects")
+    os.makedirs(deleted_root, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    shutil.move(subject_dir, os.path.join(deleted_root, f"{subject_id}_{timestamp}"))
+    with get_connection(db_path) as conn:
+        conn.execute("DELETE FROM subjects WHERE subject_id = ?", (subject_id,))
+        conn.commit()
+    return {"subject_id": subject_id}
 
 #  Return calculation results needed to post timegraph and also save them to the database
 @router.post("/timegraph")
