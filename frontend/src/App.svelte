@@ -2,7 +2,7 @@
     import { onMount } from "svelte";
     import HomeDiv from "./components/home_div.svelte";
     import RequestReportForm from "./components/request_report_form.svelte";
-    import NewUserForm from "./components/new_user_form.svelte";
+    import SubjectManagement from "./components/subject_management.svelte";
     import AddModulePage from "./components/add_module_page.svelte";
     import Help from "./components/help.svelte";                                                                              
     import Timegraph from "./components/timegraph_report_page.svelte";                                                                      
@@ -33,7 +33,7 @@
     </div>
 
     <div class="nav_link_container">
-      <a href="http://localhost:5173/#new_user_form">Add New User</a>
+      <a href="http://localhost:5173/#new_user_form">Subject Management</a>
     </div>
 
     <div class="nav_link_container">
@@ -52,7 +52,7 @@
   {:else if currentPage == "request_report_form"}
     <RequestReportForm />
   {:else if currentPage == "new_user_form"}
-    <NewUserForm />
+    <SubjectManagement />
   {:else if currentPage == "add_module_page"}
     <AddModulePage />
   {:else if currentPage == "help"}

@@ -16,14 +16,7 @@
     let selected_healthy_min = $state(0);
     let selected_healthy_max = $state(1);
     let selected_vulnerability_margin = $state(0.1);
-
-    // let new_last_name = $state("");
-    // let new_first_name = $state("");
-    // let new_sex = $state("");
-    // let new_dob = $state([]);
-    // let new_email = $state("");
-    // let new_phone = $state("");
-    // let new_notes = $state("");
+    let zone_reference_note = $state(null);
 
     async function loadSubjects() {
         loading = true;
@@ -64,6 +57,21 @@
         const module = modules.find(m => m.module_id === selected_module);
         markers = module ? module.markers : [];                                 // update available markers when module changes
         selected_marker = "";
+    }
+
+    async function loadZoneReference() {
+        if (!selected_subject || !selected_module || !selected_marker) return;
+        try {
+            const res = await fetch(`http://localhost:8000/subjects/${selected_subject}/zone-reference/${selected_module}/${selected_marker}`);
+            if (!res.ok) { zone_reference_note = null; return; }
+            const data = await res.json();
+            selected_healthy_min = data.healthy_min;
+            selected_healthy_max = data.healthy_max;
+            selected_vulnerability_margin = data.vulnerability_margin;
+            zone_reference_note = data.note;
+        } catch (error) {
+            console.error("Failed to fetch zone reference:", error);
+        }
     }
 
     async function submitTimegraphRequest() {
@@ -132,7 +140,7 @@
 
             <fieldset id="marker_selector">
                 <legend>Select Marker</legend>
-                <select bind:value={selected_marker} disabled={!selected_module}>
+                <select bind:value={selected_marker} disabled={!selected_module} onchange={loadZoneReference}>
                     <option value="">-- select marker --</option>
                     {#each markers as marker}
                         <option value={marker.marker_id}>{marker.marker_id}</option>
@@ -182,6 +190,7 @@
                     <input id="vulnerability_margin_selector" type="number" bind:value={selected_vulnerability_margin} required/>
                     <p>(Selected: {selected_vulnerability_margin})</p>
                 </fieldset>
+                {#if zone_reference_note}<p id="zone_reference_note">{zone_reference_note}</p>{/if}
             </fieldset>
 
             <button type="button" onclick={submitTimegraphRequest}>Request report</button>

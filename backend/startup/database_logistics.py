@@ -38,6 +38,20 @@ def init_db (db_path: str) -> None:
                 vulnerability_margin     REAL NOT NULL
             )
         """)
+        # Table 3: Zone boundaries
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS zone_references (
+                id                       INTEGER PRIMARY KEY,
+                module_id                TEXT NOT NULL,
+                marker_id                TEXT NOT NULL,
+                sex                      TEXT,
+                age                      INTEGER,
+                healthy_min              REAL NOT NULL,
+                healthy_max              REAL NOT NULL,
+                vulnerability_margin     REAL NOT NULL,
+                UNIQUE(module_id, marker_id, sex, age)
+            )
+        """)
         conn.commit()
 
 # Opens connection to the SQLite db defined at db_path. sqlite.row makes columns accessible by name, not just by index position
@@ -79,4 +93,49 @@ def sync_subjects(db_path: str, rawdata_root: str):
                     "notes":      p.get("notes"),
                 },
             )
+        conn.commit()
+
+# Scans marker reference range jsons and upserts into zone_references table on startup
+def sync_zone_references(db_path: str, references_root: str):
+    if not os.path.isdir(references_root):
+        return
+    with get_connection(db_path) as conn:
+        for module_id in os.listdir(references_root):
+            module_dir = os.path.join(references_root, module_id)
+            if not os.path.isdir(module_dir):
+                continue
+            for filename in os.listdir(module_dir):
+                if not filename.endswith(".json"):
+                    continue
+                marker_id = filename[:-5]
+                with open(os.path.join(module_dir, filename), "r") as f:
+                    data = json.load(f)
+                    if "generic" in data:
+                        g = data["generic"]
+                        # Delete+insert for generic row (NULL sex/age can't use ON CONFLICT)
+                        conn.execute(
+                            "DELETE FROM zone_references WHERE module_id=? AND marker_id=? AND sex IS NULL AND age IS NULL",
+                            (module_id, marker_id),
+                        )
+                        conn.execute(
+                            "INSERT INTO zone_references (module_id, marker_id, sex, age, healthy_min, healthy_max, vulnerability_margin) "
+                            "VALUES (?, ?, NULL, NULL, ?, ?, ?)",
+                            (module_id, marker_id, g["healthy_min"], g["healthy_max"], g["vulnerability_margin"]),
+                        )
+                    # Upsert per-sex per-age rows
+                    for sex, sex_data in data.get("by_sex", {}).items():
+                        for age_str, vals in sex_data.get("by_age", {}).items():
+                            conn.execute(
+                                """
+                                INSERT INTO zone_references (module_id, marker_id, sex, age, healthy_min,
+                                  healthy_max, vulnerability_margin)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                                ON CONFLICT(module_id, marker_id, sex, age) DO UPDATE SET
+                                    healthy_min          = excluded.healthy_min,
+                                    healthy_max          = excluded.healthy_max,
+                                    vulnerability_margin = excluded.vulnerability_margin
+                                """,
+                                (module_id, marker_id, sex, int(age_str), vals["healthy_min"],
+                                 vals["healthy_max"], vals["vulnerability_margin"]),
+                            )
         conn.commit()

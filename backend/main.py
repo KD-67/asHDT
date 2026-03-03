@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.startup.module_loader import load_modules
-from backend.startup.database_logistics import init_db, sync_subjects
+from backend.startup.database_logistics import init_db, sync_subjects, sync_zone_references
 from backend.api.routes import router
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))                           # resolves to: "c:\Users\kevin\proj\asHDT\backend"
@@ -17,6 +17,7 @@ DB_PATH      = os.path.join(DATA_DIR, "databases", "asHDT.db")                  
 RAWDATA_ROOT = os.path.join(DATA_DIR, "raw_data")                                   # resolves to: "c:\Users\kevin\proj\asHDT\data\raw_data"
 REPORTS_ROOT = os.path.join(DATA_DIR, "reports")                                    # resolves to: "c:\Users\kevin\proj\asHDT\data\reports"
 MODULES_PATH = os.path.join(BASE_DIR, "startup", "module_list.json")                # resolves to: "c:\Users\kevin\proj\asHDT\backend\startup\module_list.json"
+REFERENCES_ROOT = os.path.join(DATA_DIR, "reference_ranges")                        # resolves to: "c:\Users\kevin\proj\asHDT\data\reference_ranges"
 
 app = FastAPI()
 app.add_middleware(
@@ -32,7 +33,9 @@ app.include_router(router)
 def startup():
     init_db(DB_PATH)
     sync_subjects(DB_PATH, RAWDATA_ROOT)
+    sync_zone_references(DB_PATH, REFERENCES_ROOT)
     app.state.modules     = load_modules(MODULES_PATH)
     app.state.db_path      = DB_PATH
     app.state.rawdata_root = RAWDATA_ROOT
     app.state.reports_root = REPORTS_ROOT
+    app.state.references_root = REFERENCES_ROOT

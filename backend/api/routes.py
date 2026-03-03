@@ -10,7 +10,7 @@
 
 import os
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -81,6 +81,75 @@ async def get_subject_profile(subject_id: str, request: Request):
     if row is None:
         raise HTTPException(status_code=404, detail="Subject profile not found")
     return dict(row)
+
+# Return interpolated zone boundary suggestions for a given subject & marker
+@router.get("/subjects/{subject_id}/zone-reference/{module_id}/{marker_id}")
+def get_zone_references(subject_id: str, module_id:str, marker_id: str, request: Request):
+    db_path = request.app.state.db_path
+    with get_connection(db_path) as conn:
+        subject = conn.execute(
+            "SELECT sex, dob FROM subjects WHERE subject_id = ?", (subject_id,)
+        ).fetchone()
+        if subject is None:
+            raise HTTPException(status_code=404, detail="Subject not found")
+        sex = subject["sex"]
+        dob = subject["dob"]
+        # Calculate age in whole years
+        age = None
+        if dob:
+            try:
+                birth = date.fromisoformat(dob[:10])
+                today = date.today()
+                age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+            except ValueError:
+                pass
+    # Query sex-specific rows ordered by age
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            "SELECT age, healthy_min, healthy_max, vulnerability_margin FROM zone_references "
+            "WHERE module_id = ? AND marker_id = ? AND sex = ? AND age IS NOT NULL ORDER BY age",
+            (module_id, marker_id, sex),
+        ).fetchall()
+    note = None
+    result = None
+    if rows and age is not None:
+        ages = [r["age"] for r in rows]
+        if age <= ages[0]:
+            r = rows[0]
+            result = (r["healthy_min"], r["healthy_max"], r["vulnerability_margin"])
+        elif age >= ages[-1]:
+            r = rows[-1]
+            result = (r["healthy_min"], r["healthy_max"], r["vulnerability_margin"])
+        else:
+            for i in range(len(rows) - 1):
+                if ages[i] <= age <= ages[i + 1]:
+                    lo, hi = rows[i], rows[i + 1]
+                    t = (age - ages[i]) / (ages[i + 1] - ages[i])
+                    result = (
+                        lo["healthy_min"]          + t * (hi["healthy_min"]          - lo["healthy_min"]),
+                        lo["healthy_max"]          + t * (hi["healthy_max"]          - lo["healthy_max"]),
+                        lo["vulnerability_margin"] + t * (hi["vulnerability_margin"] -
+lo["vulnerability_margin"]),
+                    )
+                    break
+    # Fall back to generic if no sex-specific result
+    if result is None:
+        with get_connection(db_path) as conn:
+            generic = conn.execute(
+                "SELECT healthy_min, healthy_max, vulnerability_margin FROM zone_references "
+                "WHERE module_id = ? AND marker_id = ? AND sex IS NULL AND age IS NULL",
+                (module_id, marker_id),
+            ).fetchone()
+        if generic is None:
+            raise HTTPException(status_code=404, detail="No reference data available for this marker")    
+        result = (generic["healthy_min"], generic["healthy_max"], generic["vulnerability_margin"])        
+        note = "No sex/age-specific reference data available for this marker; using generic values."      
+    return {
+        "healthy_min":          result[0],
+        "healthy_max":          result[1],
+        "vulnerability_margin": result[2],
+        "note":                 note,
+    }
 
 # Create a new subject: auto-generate subject_id, create directory, write profile.json, insert into DB
 @router.post("/subjects", status_code=201)
