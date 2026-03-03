@@ -4,26 +4,20 @@
     <h3>HOMEPAGE: App architecture</h3>
 
     <div id="universe"> universe
-        <div id="modules">
-            <span>modules</span>
-            <div>fitness</div>
-            <div>vtf_stresstest</div>
-        </div>
         <div id="main_app">
             <span>main app</span>
             <div id="frontend">
                 <span>frontend</span>
-                <div>App.svelte
+                    <div class="functional_file">home_div.svelte</div>
+                    <div class="functional_file">request_report_form.svelte</div>
+                    <div class="functional_file">new_user_form.svelte</div>
+                    <div class="functional_file">add_module_page.svelte</div>
+                    <div class="functional_file">help.svelte</div>
                     <div>timegraph_report_page.svelte
                         <div class="functional_file">timegraph_chart.svelte</div>
                         <div class="functional_file">timegraph_table.svelte</div>
-                    </div>
-                    <div class="functional_file">request_report_form.svelte</div>
-                    <div class="functional_file">home_div.svelte</div>
-                    <div class="functional_file">help.svelte</div>
-                    <div class="functional_file">add_module_page.svelte</div>
-                    <div class="functional_file">new_user_form.svelte</div>
-                </div>
+                    </div>               
+                    
             </div>
             <div id="backend">
                 <span>backend</span>
@@ -60,6 +54,16 @@
                 <div class="functional_file">table: timegraph_reports</div>
             </div>
         </div>
+
+        <div id="modules">
+            <span>modules</span>
+            <div>
+                <span>fitness</span>
+                <div class="functional_file">VO2max</div>
+                <div class="functional_file">100m Sprint</div>
+            </div>
+            <div>vtf_stresstest</div>
+        </div>
     </div>
     
 </main>
@@ -75,6 +79,7 @@
 
     #universe {
         border: 1px solid black;
+        display: flex;
         background-color: rgb(194, 246, 255);
     }
 
@@ -86,10 +91,6 @@
     #main_app {
         background-color: rgb(223, 188, 255);
         display: flex;
-    }
-
-    span {
-        grid-area: 1 / 1 / 2 / 3
     }
 
     #frontend {
