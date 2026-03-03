@@ -10,7 +10,7 @@
                 <span>frontend</span>
                     <div class="functional_file">home_div.svelte</div>
                     <div class="functional_file">request_report_form.svelte</div>
-                    <div class="functional_file">new_user_form.svelte</div>
+                    <div class="functional_file">subject_management.svelte</div>
                     <div class="functional_file">add_module_page.svelte</div>
                     <div class="functional_file">help.svelte</div>
                     <div>timegraph_report_page.svelte
@@ -52,6 +52,7 @@
                 <span>database</span>
                 <div class="functional_file">table: subjects</div>
                 <div class="functional_file">table: timegraph_reports</div>
+                <div class="functional_file">table: zone_references</div>
             </div>
         </div>
 
@@ -63,6 +64,14 @@
                 <div class="functional_file">100m Sprint</div>
             </div>
             <div>vtf_stresstest</div>
+        </div>
+
+        <div id="reference_ranges">
+            <span>reference_ranges/</span>
+            <div>
+                <span>fitness/</span>
+                <div class="functional_file">vo2max.json</div>
+            </div>
         </div>
     </div>
     
@@ -85,6 +94,11 @@
 
     #modules {
         background-color: rgb(254, 255, 206);
+        display: flex;
+    }
+
+    #reference_ranges {
+        background-color: rgb(255, 224, 178);
         display: flex;
     }
 
