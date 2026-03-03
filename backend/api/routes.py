@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from backend.core.storage.data_reader import read_timeseries
+from backend.startup.database_logistics import get_connection
 from backend.core.analysis.trajectory_computer import compute_trajectory
 from backend.startup.database_logistics import get_connection
 from backend.core.output.report_generator import save_timegraph_report
@@ -58,15 +59,16 @@ def get_subjects(request: Request):
         if os.path.isdir(os.path.join(rawdata_root, name))
     ]
 
-# Return profile data of specified subject                                                                                                                                                                                      
+# Return profile data of specified subject
 @router.get("/subjects/{subject_id}/profile")
 async def get_subject_profile(subject_id: str, request: Request):
-    profile_path = os.path.join(request.app.state.rawdata_root, subject_id, "profile.json")
-    if not os.path.exists(profile_path):
+    with get_connection(request.app.state.db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM subjects WHERE subject_id = ?", (subject_id,)
+        ).fetchone()
+    if row is None:
         raise HTTPException(status_code=404, detail="Subject profile not found")
-    with open(profile_path, 'r') as f:
-        profile_data = json.load(f)
-    return profile_data
+    return dict(row)
 
 #  Return calculation results needed to post timegraph and also save them to the database
 @router.post("/timegraph")
@@ -130,12 +132,6 @@ def post_timegraph(body: TimegraphRequest, request: Request):
         fitting=fitting_dict,
         trajectory_result=trajectory_result,
     )
-        # Ensure subject row exists in database, and return data needed for frontend to render chart    
-    with get_connection(db_path) as conn:
-        conn.execute(
-            "INSERT OR IGNORE INTO subjects (subject_id, created_at) VALUES (?, ?)",
-            (body.subject_id, requested_at),
-        )
     return {
         "report_id": report_id,
         "datapoints": trajectory_result["datapoints"],

@@ -1,7 +1,7 @@
 <script>
     import { onMount } from "svelte";
-    import TimegraphChart from "../components/timegraph_chart.svelte";
-    import TimegraphTable from "../components/timegraph_table.svelte";
+    import TimegraphChart from "./timegraph_chart.svelte";
+    import TimegraphTable from "./timegraph_table.svelte";
 
     let reportData = $state({});
 
