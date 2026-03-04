@@ -12,6 +12,7 @@
                     <div class="functional_file">request_report_form.svelte</div>
                     <div class="functional_file">subject_management.svelte</div>
                     <div class="functional_file">add_module_page.svelte</div>
+                    <div class="functional_file">dataset_management.svelte</div>
                     <div class="functional_file">help.svelte</div>
                     <div>timegraph_report_page.svelte
                         <div class="functional_file">timegraph_chart.svelte</div>
@@ -33,15 +34,20 @@
                     <span>core</span>
                     <div class="backend_core" id="ingestion">
                         <span>ingestion</span>
+                        <div class="functional_file">Module management (routes.py)</div>
+                        <div class="functional_file">Dataset management (routes.py)</div>
                     </div>
+
                     <div class="backend_core" id="analysis">
                         <span>analysis</span>
                         <div class="functional_file">trajectory_computer.py</div>
                     </div>
+
                     <div class="backend_core" id="storage">
                         <span>storage</span>
                         <div class="functional_file">data_reader.py</div>
                     </div>
+
                     <div class="backend_core" id="output">
                         <span>output</span>
                         <div class="functional_file">report_generator.py</div>

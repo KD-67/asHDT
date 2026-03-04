@@ -35,6 +35,7 @@ def startup():
     sync_subjects(DB_PATH, RAWDATA_ROOT)
     sync_zone_references(DB_PATH, REFERENCES_ROOT)
     app.state.modules     = load_modules(MODULES_PATH)
+    app.state.modules_path = MODULES_PATH
     app.state.db_path      = DB_PATH
     app.state.rawdata_root = RAWDATA_ROOT
     app.state.reports_root = REPORTS_ROOT

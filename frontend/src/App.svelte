@@ -4,6 +4,7 @@
     import RequestReportForm from "./components/request_report_form.svelte";
     import SubjectManagement from "./components/subject_management.svelte";
     import AddModulePage from "./components/add_module_page.svelte";
+    import DatasetManagement from "./components/dataset_management.svelte";
     import Help from "./components/help.svelte";                                                                              
     import Timegraph from "./components/timegraph_report_page.svelte";                                                                      
     
@@ -41,6 +42,10 @@
     </div>
 
     <div class="nav_link_container">
+      <a href="http://localhost:5173/#dataset_management">Dataset Management</a>
+    </div>
+
+    <div class="nav_link_container">
       <a href="http://localhost:5173/#help">Help</a>
     </div>
   </nav>
@@ -55,6 +60,8 @@
     <SubjectManagement />
   {:else if currentPage == "add_module_page"}
     <AddModulePage />
+  {:else if currentPage == "dataset_management"}
+    <DatasetManagement />
   {:else if currentPage == "help"}
     <Help />
   {:else if currentPage == "timegraph"}

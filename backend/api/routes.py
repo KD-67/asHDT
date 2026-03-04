@@ -12,7 +12,7 @@ import os
 import json
 from datetime import datetime, timezone, date
 from uuid import uuid4
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from pydantic import BaseModel
 
 from backend.core.storage.data_reader import read_timeseries
@@ -53,7 +53,48 @@ class SubjectProfile(BaseModel):
     phone: str
     notes: str = ""
 
-#Routes
+class ModuleCreate(BaseModel):
+    module_id: str
+    description: str
+    format: str = "json"
+
+class ModuleUpdate(BaseModel):
+    description: str
+
+class MarkerCreate(BaseModel):
+    marker_id: str
+    description: str
+    unit: str
+    volatility_class: str
+    healthy_min: float
+    healthy_max: float
+    vulnerability_margin: float
+
+class MarkerUpdate(BaseModel):
+    description: str
+    unit: str
+    volatility_class: str
+    healthy_min: float
+    healthy_max: float
+    vulnerability_margin: float
+
+class DatapointCreate(BaseModel):
+    timestamp: str
+    value: float
+    unit: str
+    data_quality: str = "good"
+
+# Functions
+def _write_modules(path: str, data: dict):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+def _save_index(index_path: str, data: dict):
+    with open(index_path, "w", encoding ="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+# Routes
 
 # Return module list
 @router.get("/modules")
@@ -215,6 +256,302 @@ def delete_subject(subject_id: str, request: Request):
         conn.execute("DELETE FROM subjects WHERE subject_id = ?", (subject_id,))
         conn.commit()
     return {"subject_id": subject_id}
+
+# Create a new module
+@router.post("/modules", status_code=201)
+def post_module(body: ModuleCreate, request: Request):
+    path = request.app.state.modules_path
+    modules = request.app.state.modules
+    if any(m["module_id"] == body.module_id for m in modules["modules"]):
+        raise HTTPException(status_code=409, detail="module_id already exists!")
+    modules["modules"].append({
+        "module_id": body.module_id,
+        "description": body.description,
+        "format": body.format,
+        "markers": [],
+    })
+    _write_modules(path, modules)
+    request.app.state.modules = modules
+    return {"module_id": body.module_id}
+
+# Edit existing module
+@router.put("/modules/{module_id}")
+def put_module(module_id: str, body: ModuleUpdate, request: Request):
+    path = request.app.state.modules_path
+    modules = request.app.state.modules
+    mod = next((m for m in modules["modules"] if m["module_id"] == module_id), None)
+    if mod is None:
+        raise HTTPException(status_code=404, detail="Module not found")
+    mod["description"] = body.description
+    _write_modules(path, modules)
+    request.app.state.modules = modules
+    return {"module_id": module_id}
+
+# Delete existing module
+@router.delete("/modules/{module_id}")
+def delete_module(module_id: str, request: Request):
+    path = request.app.state.modules_path
+    modules = request.app.state.modules
+    before = len(modules["modules"])
+    modules["modules"] = [m for m in modules["modules"] if m["module_id"] != module_id]
+    if len(modules["modules"]) == before:
+        raise HTTPException(status_code=404, detail="Module not found")
+    _write_modules(path, modules)
+    request.app.state.modules = modules
+    return {"module_id": module_id}
+
+# Create new marker data
+@router.post("/modules/{module_id}/markers", status_code=201)
+def post_marker(module_id: str, body: MarkerCreate, request: Request):
+    path = request.app.state.modules_path
+    modules = request.app.state.modules
+    db_path = request.app.state.db_path
+    references_root = request.app.state.references_root
+    mod = next((m for m in modules["modules"] if m["module_id"] == module_id), None)
+    if mod is None:
+        raise HTTPException(status_code=404, detail="Module not found")
+    if any(mk["marker_id"] == body.marker_id for mk in mod["markers"]):
+        raise HTTPException(status_code=409, detail="marker_id already exists in this module")
+    mod["markers"].append({
+        "marker_id": body.marker_id,
+        "description": body.description,
+        "unit": body.unit,
+        "volatility_class": body.volatility_class,
+    })
+    _write_modules(path, modules)
+    request.app.state.modules = modules
+    # Write reference range JSON
+    ref_dir = os.path.join(references_root, module_id)
+    os.makedirs(ref_dir, exist_ok=True)
+    ref_data = {
+        "module_id": module_id,
+        "marker_id": body.marker_id,
+        "generic": {
+            "healthy_min": body.healthy_min,
+            "healthy_max": body.healthy_max,
+            "vulnerability_margin": body.vulnerability_margin,
+        },
+    }
+    with open(os.path.join(ref_dir, f"{body.marker_id}.json"), "w", encoding="utf-8") as f:
+        json.dump(ref_data, f, indent=2)
+    # Upsert generic zone_references row
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO zone_references (module_id, marker_id, sex, age, healthy_min, healthy_max, vulnerability_margin) VALUES (?, ?, NULL, NULL, ?, ?, ?)",
+            (module_id, body.marker_id, body.healthy_min, body.healthy_max, body.vulnerability_margin),   
+        )
+        conn.commit()
+    return {"module_id": module_id, "marker_id": body.marker_id}
+
+# Add new marker data to module
+@router.put("/modules/{module_id}/markers/{marker_id}")
+def put_marker(module_id: str, marker_id: str, body: MarkerUpdate, request: Request):
+    path = request.app.state.modules_path
+    modules = request.app.state.modules
+    db_path = request.app.state.db_path
+    references_root = request.app.state.references_root
+    mod = next((m for m in modules["modules"] if m["module_id"] == module_id), None)
+    if mod is None:
+        raise HTTPException(status_code=404, detail="Module not found")
+    mk = next((mk for mk in mod["markers"] if mk["marker_id"] == marker_id), None)
+    if mk is None:
+        raise HTTPException(status_code=404, detail="Marker not found")
+    mk["description"] = body.description
+    mk["unit"] = body.unit
+    mk["volatility_class"] = body.volatility_class
+    _write_modules(path, modules)
+    request.app.state.modules = modules
+    # Overwrite reference range JSON
+    ref_path = os.path.join(references_root, module_id, f"{marker_id}.json")
+    if os.path.isfile(ref_path):
+        with open(ref_path, "r", encoding="utf-8") as f:
+            ref_data = json.load(f)
+    else:
+        ref_data = {"module_id": module_id, "marker_id": marker_id}
+    ref_data["generic"] = {
+        "healthy_min": body.healthy_min,
+        "healthy_max": body.healthy_max,
+        "vulnerability_margin": body.vulnerability_margin,
+    }
+    os.makedirs(os.path.dirname(ref_path), exist_ok=True)
+    with open(ref_path, "w", encoding="utf-8") as f:
+        json.dump(ref_data, f, indent=2)
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO zone_references (module_id, marker_id, sex, age, healthy_min, healthy_max, vulnerability_margin) VALUES (?, ?, NULL, NULL, ?, ?, ?)",
+            (module_id, marker_id, body.healthy_min, body.healthy_max, body.vulnerability_margin),        
+        )
+        conn.commit()
+    return {"module_id": module_id, "marker_id": marker_id}
+
+# Delete existing marker data
+@router.delete("/modules/{module_id}/markers/{marker_id}")
+def delete_marker(module_id: str, marker_id: str, request: Request):
+    path = request.app.state.modules_path
+    modules = request.app.state.modules
+    mod = next((m for m in modules["modules"] if m["module_id"] == module_id), None)
+    if mod is None:
+        raise HTTPException(status_code=404, detail="Module not found")
+    before = len(mod["markers"])
+    mod["markers"] = [mk for mk in mod["markers"] if mk["marker_id"] != marker_id]
+    if len(mod["markers"]) == before:
+        raise HTTPException(status_code=404, detail="Marker not found")
+    _write_modules(path, modules)
+    request.app.state.modules = modules
+    return {"module_id": module_id, "marker_id": marker_id}
+
+# List all datasets that exists for a subject
+@router.get("/subjects/{subject_id}/datasets")
+def get_datasets(subject_id: str, request: Request):
+    rawdata_root = request.app.state.rawdata_root
+    subject_dir = os.path.join(rawdata_root, subject_id)
+    if not os.path.isdir(subject_dir):
+        raise HTTPException(status_code=404, detail="Subject not found")
+    datasets = []
+    for module_id in os.listdir(subject_dir):
+        module_dir = os.path.join(subject_dir, module_id)
+        if not os.path.isdir(module_dir):
+            continue
+        for marker_id in os.listdir(module_dir):
+            marker_dir = os.path.join(module_dir, marker_id)
+            index_path = os.path.join(marker_dir, "index.json")
+            if not os.path.isfile(index_path):
+                continue
+            with open(index_path, "r", encoding="utf-8") as f:
+                index = json.load(f)
+            datasets.append({
+                "module_id": module_id,
+                "marker_id": marker_id,
+                "entry_count": len(index.get("entries", [])),
+            })
+    return datasets
+
+# Get full table of datapoints for one subject/module/marker
+@router.get("/subjects/{subject_id}/datasets/{module_id}/{marker_id}")
+def get_dataset(subject_id: str, module_id: str, marker_id: str, request: Request):
+    rawdata_root = request.app.state.rawdata_root
+    marker_dir = os.path.join(rawdata_root, subject_id, module_id, marker_id)
+    index_path = os.path.join(marker_dir, "index.json")
+    if not os.path.isfile(index_path):
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    with open(index_path, "r", encoding="utf-8") as f:
+        index = json.load(f)
+    rows = []
+    for entry in index.get("entries", []):
+        file_path = os.path.join(marker_dir, entry["file"])
+        if not os.path.isfile(file_path):
+            continue
+        with open(file_path, "r", encoding="utf-8") as f:
+            dp = json.load(f)
+        rows.append({
+            "timestamp": dp.get("timestamp"),
+            "value": dp.get("value"),
+            "unit": dp.get("unit"),
+            "data_quality": dp.get("data_quality"),
+        })
+    return rows
+
+# Add new datapoint via filling out the form
+@router.post("/subjects/{subject_id}/datasets/{module_id}/{marker_id}", status_code=201)
+def post_datapoint(subject_id: str, module_id: str, marker_id: str, body: DatapointCreate, request:       
+Request):
+    rawdata_root = request.app.state.rawdata_root
+    marker_dir = os.path.join(rawdata_root, subject_id, module_id, marker_id)
+    os.makedirs(marker_dir, exist_ok=True)
+    index_path = os.path.join(marker_dir, "index.json")
+    # Load or create index
+    if os.path.isfile(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            index = json.load(f)
+    else:
+        index = {"subject_id": subject_id, "module_id": module_id, "marker_id": marker_id, "entries": []} 
+    # Build filename from timestamp
+    safe_ts = body.timestamp.replace(":", "-").replace("+", "").rstrip("Z") + "Z"
+    filename = f"{safe_ts}.json"
+    if any(e["file"] == filename for e in index["entries"]):
+        raise HTTPException(status_code=409, detail="A datapoint with this timestamp already exists")     
+    # Write datapoint file
+    dp = {
+        "schema_version": "1.0",
+        "module_id": module_id,
+        "marker_id": marker_id,
+        "subject_id": subject_id,
+        "timestamp": body.timestamp,
+        "value": body.value,
+        "unit": body.unit,
+        "data_quality": body.data_quality,
+    }
+    with open(os.path.join(marker_dir, filename), "w", encoding="utf-8") as f:
+        json.dump(dp, f, indent=2)
+    # Append to index
+    index["entries"].append({"timestamp": body.timestamp, "file": filename})
+    index["entries"].sort(key=lambda e: e["timestamp"])
+    _save_index(index_path, index)
+    return {"file": filename}
+
+#Add new datapoint via uploading JSON file
+@router.post("/subjects/{subject_id}/datasets/{module_id}/{marker_id}/upload", status_code=201)
+async def upload_datapoint(subject_id: str, module_id: str, marker_id: str, request: Request, file:       
+UploadFile = File(...)):
+    rawdata_root = request.app.state.rawdata_root
+    marker_dir = os.path.join(rawdata_root, subject_id, module_id, marker_id)
+    os.makedirs(marker_dir, exist_ok=True)
+    index_path = os.path.join(marker_dir, "index.json")
+    content = await file.read()
+    try:
+        dp = json.loads(content)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=422, detail="Uploaded file is not valid JSON")
+    for key in ("timestamp", "value", "unit"):
+        if key not in dp:
+            raise HTTPException(status_code=422, detail=f"Missing required field: {key}")
+    # Load or create index
+    if os.path.isfile(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            index = json.load(f)
+    else:
+        index = {"subject_id": subject_id, "module_id": module_id, "marker_id": marker_id, "entries": []} 
+    safe_ts = dp["timestamp"].replace(":", "-").replace("+", "").rstrip("Z") + "Z"
+    filename = f"{safe_ts}.json"
+    if any(e["file"] == filename for e in index["entries"]):
+        raise HTTPException(status_code=409, detail="A datapoint with this timestamp already exists")     
+    with open(os.path.join(marker_dir, filename), "wb") as f:
+        f.write(content)
+    index["entries"].append({"timestamp": dp["timestamp"], "file": filename})
+    index["entries"].sort(key=lambda e: e["timestamp"])
+    _save_index(index_path, index)
+    return {"file": filename}
+
+# Delete a single datapoint by timestamp
+@router.delete("/subjects/{subject_id}/datasets/{module_id}/{marker_id}/{timestamp}")
+def delete_datapoint(subject_id: str, module_id: str, marker_id: str, timestamp: str, request: Request):  
+    rawdata_root = request.app.state.rawdata_root
+    marker_dir = os.path.join(rawdata_root, subject_id, module_id, marker_id)
+    index_path = os.path.join(marker_dir, "index.json")
+    if not os.path.isfile(index_path):
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    with open(index_path, "r", encoding="utf-8") as f:
+        index = json.load(f)
+    entry = next((e for e in index["entries"] if e["timestamp"] == timestamp), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Datapoint not found")
+    file_path = os.path.join(marker_dir, entry["file"])
+    if os.path.isfile(file_path):
+        os.remove(file_path)
+    index["entries"] = [e for e in index["entries"] if e["timestamp"] != timestamp]
+    _save_index(index_path, index)
+    return {"timestamp": timestamp}
+
+# Delete an entire marker dataset
+@router.delete("/subjects/{subject_id}/datasets/{module_id}/{marker_id}")
+def delete_dataset(subject_id: str, module_id: str, marker_id: str, request: Request):
+    import shutil
+    rawdata_root = request.app.state.rawdata_root
+    marker_dir = os.path.join(rawdata_root, subject_id, module_id, marker_id)
+    if not os.path.isdir(marker_dir):
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    shutil.rmtree(marker_dir)
+    return {"module_id": module_id, "marker_id": marker_id}
 
 #  Return calculation results needed to post timegraph and also save them to the database
 @router.post("/timegraph")

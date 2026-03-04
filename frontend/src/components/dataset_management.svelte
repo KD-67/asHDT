@@ -1,0 +1,340 @@
+<script>                                                                                                  
+    import { onMount } from "svelte";
+
+    const BASE_URL = "http://localhost:8000";
+
+    let subjects = $state([]);
+    let selectedSubject = $state("");
+    let datasets = $state([]);
+    let selectedDataset = $state(null); // { module_id, marker_id }
+    let datapoints = $state([]);
+    let statusMessage = $state("");
+    let statusOk = $state(true);
+
+    // Add datapoint form
+    let addTab = $state("form"); // "form" or "upload"
+    let dpTimestamp = $state("");
+    let dpValue = $state("");
+    let dpUnit = $state("");
+    let dpQuality = $state("good");
+    let uploadFile = $state(null);
+
+    onMount(async () => {
+        const res = await fetch(`${BASE_URL}/subjects`);
+        subjects = await res.json();
+    });
+
+    function setStatus(msg, ok = true) {
+        statusMessage = msg;
+        statusOk = ok;
+    }
+
+    async function loadDatasets(subject_id) {
+        datasets = [];
+        selectedDataset = null;
+        datapoints = [];
+        statusMessage = "";
+        const res = await fetch(`${BASE_URL}/subjects/${subject_id}/datasets`);
+        if (res.ok) datasets = await res.json();
+        else setStatus("Failed to load datasets.", false);
+    }
+
+    async function loadDatapoints(module_id, marker_id) {
+        selectedDataset = { module_id, marker_id };
+        datapoints = [];
+        dpUnit = "";
+        statusMessage = "";
+        const res = await
+fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id}`);
+        if (res.ok) {
+            datapoints = await res.json();
+            if (datapoints.length > 0) dpUnit = datapoints[0].unit ?? "";
+        } else {
+            setStatus("Failed to load datapoints.", false);
+        }
+    }
+
+    async function handleAddForm() {
+        if (!dpTimestamp) { setStatus("Timestamp is required.", false); return; }
+        if (dpValue === "") { setStatus("Value is required.", false); return; }
+        const res = await fetch(
+            `${BASE_URL}/subjects/${selectedSubject}/datasets/${selectedDataset.module_id}/${selectedDataset.marker_id}`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    timestamp: new Date(dpTimestamp).toISOString(),
+                    value: parseFloat(dpValue),
+                    unit: dpUnit,
+                    data_quality: dpQuality,
+                }),
+            }
+        );
+        if (res.ok) {
+            setStatus("Datapoint added.");
+            dpTimestamp = ""; dpValue = ""; dpQuality = "good";
+            await loadDatasets(selectedSubject);
+            await loadDatapoints(selectedDataset.module_id, selectedDataset.marker_id);
+        } else {
+            const err = await res.json();
+            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        }
+    }
+
+    async function handleUpload() {
+        if (!uploadFile) { setStatus("Select a file first.", false); return; }
+        const form = new FormData();
+        form.append("file", uploadFile);
+        const res = await fetch(
+            `${BASE_URL}/subjects/${selectedSubject}/datasets/${selectedDataset.module_id}/${selectedDataset.marker_id}/upload`,
+            { method: "POST", body: form }
+        );
+        if (res.ok) {
+            setStatus("File uploaded.");
+            uploadFile = null;
+            await loadDatasets(selectedSubject);
+            await loadDatapoints(selectedDataset.module_id, selectedDataset.marker_id);
+        } else {
+            const err = await res.json();
+            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        }
+    }
+
+    async function handleDeleteDatapoint(timestamp) {
+        if (!confirm(`Delete datapoint at ${timestamp}?`)) return;
+        const res = await fetch(
+            `${BASE_URL}/subjects/${selectedSubject}/datasets/${selectedDataset.module_id}/${selectedDataset.marker_id}/${encodeURIComponent(timestamp)}`,
+            { method: "DELETE" }
+        );
+        if (res.ok) {
+            setStatus("Datapoint deleted.");
+            await loadDatasets(selectedSubject);
+            await loadDatapoints(selectedDataset.module_id, selectedDataset.marker_id);
+        } else {
+            const err = await res.json();
+            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        }
+    }
+
+    async function handleDeleteDataset(module_id, marker_id) {
+        if (!confirm(`Delete entire dataset ${module_id}/${marker_id} for ${selectedSubject}? This cannot 
+be undone.`)) return;
+        const res = await fetch(
+            `${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id}`,
+            { method: "DELETE" }
+        );
+        if (res.ok) {
+            setStatus(`Dataset ${module_id}/${marker_id} deleted.`);
+            selectedDataset = null;
+            datapoints = [];
+            await loadDatasets(selectedSubject);
+        } else {
+            const err = await res.json();
+            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        }
+    }
+</script>
+
+<main>
+    <div id="main_container">
+
+        <!-- Subject selector -->
+        <div id="subject_selector">
+            <label for="subject_select">Subject:</label>
+            <select id="subject_select" bind:value={selectedSubject} onchange={() =>
+loadDatasets(selectedSubject)}>
+                <option value="">-- select --</option>
+                {#each subjects as s}
+                    <option value={s}>{s}</option>
+                {/each}
+            </select>
+        </div>
+
+        {#if statusMessage}
+            <p id="status_msg" class:error={!statusOk}>{statusMessage}</p>
+        {/if}
+
+        <!-- Dataset list -->
+        {#if selectedSubject}
+            <div id="dataset_list">
+                <h3>Datasets for {selectedSubject}</h3>
+                {#if datasets.length === 0}
+                    <p class="empty_msg">No datasets found.</p>
+                {:else}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Module</th>
+                                <th>Marker</th>
+                                <th>Entries</th>
+                                <th></th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {#each datasets as ds}
+                                <tr class:selected_row={selectedDataset?.module_id === ds.module_id &&    
+selectedDataset?.marker_id === ds.marker_id}>
+                                    <td>{ds.module_id}</td>
+                                    <td>{ds.marker_id}</td>
+                                    <td>{ds.entry_count}</td>
+                                    <td><button type="button" onclick={() => loadDatapoints(ds.module_id, 
+ds.marker_id)}>View</button></td>
+                                    <td><button type="button" class="delete_btn" onclick={() =>
+handleDeleteDataset(ds.module_id, ds.marker_id)}>Delete</button></td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                {/if}
+            </div>
+        {/if}
+
+        <!-- Datapoint detail panel -->
+        {#if selectedDataset}
+            <div id="detail_panel">
+                <h3>{selectedDataset.module_id} / {selectedDataset.marker_id}</h3>
+
+                <!-- Datapoint table -->
+                {#if datapoints.length === 0}
+                    <p class="empty_msg">No datapoints.</p>
+                {:else}
+                    <table>
+                        <thead>
+
+<tr><th>Timestamp</th><th>Value</th><th>Unit</th><th>Quality</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            {#each datapoints as dp}
+                                <tr>
+                                    <td>{dp.timestamp}</td>
+                                    <td>{dp.value}</td>
+                                    <td>{dp.unit}</td>
+                                    <td>{dp.data_quality}</td>
+                                    <td><button type="button" class="delete_btn" onclick={() =>
+handleDeleteDatapoint(dp.timestamp)}>Delete</button></td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                {/if}
+
+                <!-- Add datapoint -->
+                <div id="add_section">
+                    <h4>Add datapoint</h4>
+                    <div id="add_tab_toggle">
+                        <button type="button" class:active={addTab === "form"} onclick={() => addTab =    
+"form"}>Form</button>
+                        <button type="button" class:active={addTab === "upload"} onclick={() => addTab =  
+"upload"}>Upload JSON</button>
+                    </div>
+
+                    {#if addTab === "form"}
+                        <div class="add_form">
+                            <label>Timestamp</label>
+                            <input type="datetime-local" bind:value={dpTimestamp}>
+
+                            <label>Value</label>
+                            <input type="number" step="any" bind:value={dpValue}>
+
+                            <label>Unit</label>
+                            <input type="text" bind:value={dpUnit}>
+
+                            <label>Data quality</label>
+                            <select bind:value={dpQuality}>
+                                <option value="good">good</option>
+                                <option value="suspect">suspect</option>
+                                <option value="poor">poor</option>
+                            </select>
+
+                            <button type="button" onclick={handleAddForm}>Add datapoint</button>
+                        </div>
+                    {:else}
+                        <div class="add_form">
+                            <label>JSON file</label>
+                            <input type="file" accept=".json" onchange={(e) => uploadFile = e.target.files[0]}>
+                            <button type="button" onclick={handleUpload}>Upload</button>
+                        </div>
+                    {/if}
+                </div>
+            </div>
+        {/if}
+
+    </div>
+</main>
+
+<style>
+    #main_container {
+        border: 1px solid black;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        padding: 5px;
+    }
+
+    #subject_selector {
+        width: 100%;
+    }
+
+    #status_msg {
+        width: 100%;
+        font-weight: bold;
+    }
+
+    #status_msg.error { color: red; }
+
+    #dataset_list, #detail_panel {
+        border: 1px solid black;
+        padding: 8px;
+        flex: 1;
+        min-width: 300px;
+    }
+
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    th, td {
+        border: 1px solid #ccc;
+        padding: 4px 8px;
+        text-align: left;
+    }
+
+    th { background-color: #eee; }
+
+    .selected_row { background-color: rgb(220, 235, 255); }
+
+    .delete_btn { background-color: rgb(255, 180, 180); }
+
+    .empty_msg { color: #888; font-style: italic; }
+
+    #add_section {
+        margin-top: 12px;
+        border-top: 1px solid #ccc;
+        padding-top: 8px;
+    }
+
+    #add_tab_toggle {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 8px;
+    }
+
+    #add_tab_toggle button.active {
+        font-weight: bold;
+        text-decoration: underline;
+    }
+
+    .add_form {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        background-color: lightyellow;
+        padding: 8px;
+        border: 1px solid #ccc;
+    }
+
+    .add_form input, .add_form select { width: 160px; }
+</style>
