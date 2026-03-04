@@ -83,6 +83,12 @@ class DatapointCreate(BaseModel):
     unit: str
     data_quality: str = "good"
 
+class DatapointUpdate(BaseModel):
+    measured_at: str
+    value: float
+    unit: str
+    data_quality: str = "good"
+
 # Functions
 def _write_modules(path: str, data: dict):
     with open(path, "w", encoding="utf-8") as f:
@@ -545,6 +551,58 @@ Request):
         )
         conn.commit()
     return {"file": filename}
+
+# Update an existing datapoint by measured_at
+@router.put("/subjects/{subject_id}/datasets/{module_id}/{marker_id}/{measured_at}")
+def put_datapoint(subject_id: str, module_id: str, marker_id: str, measured_at: str, body: DatapointUpdate, request: Request):
+    rawdata_root = request.app.state.rawdata_root
+    marker_dir = os.path.join(rawdata_root, subject_id, module_id, marker_id)
+    index_path = os.path.join(marker_dir, "index.json")
+    if not os.path.isfile(index_path):
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    with open(index_path, "r", encoding="utf-8") as f:
+        index = json.load(f)
+    entry = next((e for e in index["entries"] if e["measured_at"] == measured_at), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Datapoint not found")
+    new_safe_ts = body.measured_at.replace(":", "-").replace("+", "").rstrip("Z") + "Z"
+    new_filename = f"{new_safe_ts}.json"
+    if body.measured_at != measured_at:
+        if any(e["file"] == new_filename for e in index["entries"]):
+            raise HTTPException(status_code=409, detail="A datapoint with this timestamp already exists")
+    old_file_path = os.path.join(marker_dir, entry["file"])
+    with open(old_file_path, "r", encoding="utf-8") as f:
+        existing = json.load(f)
+    updated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    new_dp = {
+        **existing,
+        "measured_at": body.measured_at,
+        "value": body.value,
+        "unit": body.unit,
+        "data_quality": body.data_quality,
+        "updated_at": updated_at,
+    }
+    new_file_path = os.path.join(marker_dir, new_filename)
+    with open(new_file_path, "w", encoding="utf-8") as f:
+        json.dump(new_dp, f, indent=2)
+    if new_filename != entry["file"]:
+        os.remove(old_file_path)
+    for e in index["entries"]:
+        if e["measured_at"] == measured_at:
+            e["measured_at"] = body.measured_at
+            e["file"] = new_filename
+            break
+    index["entries"].sort(key=lambda e: e["measured_at"])
+    _save_index(index_path, index)
+    table = _datapoint_table(subject_id, module_id, marker_id)
+    with get_connection(request.app.state.db_path) as conn:
+        _ensure_datapoint_table(conn, table)
+        conn.execute(
+            f'UPDATE "{table}" SET measured_at=?, value=?, unit=?, data_quality=? WHERE measured_at=?',
+            (body.measured_at, body.value, body.unit, body.data_quality, measured_at),
+        )
+        conn.commit()
+    return {"file": new_filename}
 
 #Add new datapoint via uploading JSON file
 @router.post("/subjects/{subject_id}/datasets/{module_id}/{marker_id}/upload", status_code=201)

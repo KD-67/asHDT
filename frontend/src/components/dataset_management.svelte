@@ -14,6 +14,13 @@
     let newDsModule = $state("");
     let newDsMarker = $state("");
 
+    // Edit datapoint
+    let editingDp = $state(null); // { measured_at, value, unit, data_quality } — original values
+    let editTs = $state("");
+    let editValue = $state("");
+    let editUnit = $state("");
+    let editQuality = $state("good");
+
     // Add datapoint form
     let addTab = $state("form"); // "form" or "upload"
     let dpTimestamp = $state("");
@@ -79,6 +86,42 @@ fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id
             setStatus("No datapoints found for this dataset.", true);
         } else {
             setStatus(`Failed to load datapoints (${res.status}).`, false);
+        }
+    }
+
+    function handleStartEdit(dp) {
+        editingDp = dp;
+        editTs = dp.measured_at.slice(0, 16); // trim to datetime-local format
+        editValue = String(dp.value);
+        editUnit = dp.unit ?? "";
+        editQuality = dp.data_quality ?? "good";
+        statusMessage = "";
+    }
+
+    async function handleEditSave() {
+        if (!editTs) { setStatus("Timestamp is required.", false); return; }
+        if (editValue === "") { setStatus("Value is required.", false); return; }
+        const res = await fetch(
+            `${BASE_URL}/subjects/${selectedSubject}/datasets/${selectedDataset.module_id}/${selectedDataset.marker_id}/${encodeURIComponent(editingDp.measured_at)}`,
+            {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    measured_at: new Date(editTs).toISOString(),
+                    value: parseFloat(editValue),
+                    unit: editUnit,
+                    data_quality: editQuality,
+                }),
+            }
+        );
+        if (res.ok) {
+            setStatus("Datapoint updated.");
+            editingDp = null;
+            await loadDatasets(selectedSubject);
+            await loadDatapoints(selectedDataset.module_id, selectedDataset.marker_id);
+        } else {
+            const err = await res.json();
+            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
         }
     }
 
@@ -252,22 +295,49 @@ selectedDataset?.marker_id === ds.marker_id}
                 {:else}
                     <table>
                         <thead>
-
-<tr><th>Timestamp</th><th>Value</th><th>Unit</th><th>Quality</th><th></th></tr>
+                            <tr><th>Timestamp</th><th>Value</th><th>Unit</th><th>Quality</th><th></th><th></th></tr>
                         </thead>
                         <tbody>
                             {#each datapoints as dp}
-                                <tr>
+                                <tr class:editing_row={editingDp?.measured_at === dp.measured_at}>
                                     <td>{dp.measured_at}</td>
                                     <td>{dp.value}</td>
                                     <td>{dp.unit}</td>
                                     <td>{dp.data_quality}</td>
+                                    <td><button type="button" onclick={() => handleStartEdit(dp)}>Edit</button></td>
                                     <td><button type="button" class="delete_btn" onclick={() =>
 handleDeleteDatapoint(dp.measured_at)}>Delete</button></td>
                                 </tr>
                             {/each}
                         </tbody>
                     </table>
+                {/if}
+
+                <!-- Edit datapoint -->
+                {#if editingDp}
+                    <div id="edit_section">
+                        <h4>Edit datapoint</h4>
+                        <div class="add_form">
+                            <label>Timestamp</label>
+                            <input type="datetime-local" bind:value={editTs}>
+
+                            <label>Value</label>
+                            <input type="number" step="any" bind:value={editValue}>
+
+                            <label>Unit</label>
+                            <input type="text" bind:value={editUnit}>
+
+                            <label>Data quality</label>
+                            <select bind:value={editQuality}>
+                                <option value="good">good</option>
+                                <option value="suspect">suspect</option>
+                                <option value="poor">poor</option>
+                            </select>
+
+                            <button type="button" onclick={handleEditSave}>Save</button>
+                            <button type="button" onclick={() => editingDp = null}>Cancel</button>
+                        </div>
+                    </div>
                 {/if}
 
                 <!-- Add datapoint -->
@@ -366,6 +436,14 @@ handleDeleteDatapoint(dp.measured_at)}>Delete</button></td>
     .delete_btn { background-color: rgb(255, 180, 180); }
 
     .empty_msg { color: #888; font-style: italic; }
+
+    .editing_row { background-color: rgb(255, 250, 210); }
+
+    #edit_section {
+        margin-top: 12px;
+        border-top: 1px solid #ccc;
+        padding-top: 8px;
+    }
 
     #add_section {
         margin-top: 12px;
