@@ -15,6 +15,9 @@ dist/
 
 # Runtime-generated subject data
 data/deleted_subjects/
+data/deleted_datapoints/
+data/deleted_datasets/
+data/deleted_reference_ranges/
 data/reports/
 
 # VS Code

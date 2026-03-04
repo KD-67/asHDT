@@ -54,7 +54,7 @@ def read_timeseries(
     for entry in entries:
 
         entry_time = datetime.fromisoformat(
-            entry["timestamp"].replace("Z", "+00:00")
+            entry["measured_at"].replace("Z", "+00:00")
         )
 
         if from_time <= entry_time <= to_time:
@@ -74,7 +74,7 @@ def read_timeseries(
             continue
 
         datapoint["parsed_timestamp"] = datetime.fromisoformat(
-            datapoint["timestamp"].replace("Z", "+00:00")
+            datapoint["measured_at"].replace("Z", "+00:00")
         )
 
         datapoints.append(datapoint)

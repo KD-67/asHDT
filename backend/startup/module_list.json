@@ -27,10 +27,16 @@
         {
           "marker_id": "100m_sprint",
           "description": "Fastest 100m sprint from session",
-          "unit":  "seconds",
+          "unit": "seconds",
           "volatility_class": "medium_term"
         }
       ]
+    },
+    {
+      "module_id": "body_composition",
+      "description": "Collection of dynamic measurements of the subject's body composition",
+      "format": "json",
+      "markers": []
     }
   ]
 }

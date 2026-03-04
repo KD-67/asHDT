@@ -52,6 +52,26 @@ def init_db (db_path: str) -> None:
                 UNIQUE(module_id, marker_id, sex, age)
             )
         """)
+        # Table 4: Module catalog
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS modules (
+                module_id    TEXT PRIMARY KEY,
+                description  TEXT,
+                format       TEXT
+            )
+        """)
+        # Table 5: Marker catalog
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS markers (
+                id               INTEGER PRIMARY KEY,
+                module_id        TEXT NOT NULL,
+                marker_id        TEXT NOT NULL,
+                description      TEXT,
+                unit             TEXT,
+                volatility_class TEXT,
+                UNIQUE(module_id, marker_id)
+            )
+        """)
         conn.commit()
 
 # Opens connection to the SQLite db defined at db_path. sqlite.row makes columns accessible by name, not just by index position
@@ -93,6 +113,81 @@ def sync_subjects(db_path: str, rawdata_root: str):
                     "notes":      p.get("notes"),
                 },
             )
+        conn.commit()
+
+# Reads module_list.json and upserts every module and marker into the modules/markers tables
+def sync_modules(db_path: str, modules_path: str):
+    if not os.path.isfile(modules_path):
+        return
+    with open(modules_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    with get_connection(db_path) as conn:
+        for mod in data.get("modules", []):
+            conn.execute(
+                "INSERT INTO modules (module_id, description, format) VALUES (?, ?, ?) "
+                "ON CONFLICT(module_id) DO UPDATE SET description=excluded.description, format=excluded.format",
+                (mod["module_id"], mod.get("description"), mod.get("format")),
+            )
+            for mk in mod.get("markers", []):
+                conn.execute(
+                    "INSERT INTO markers (module_id, marker_id, description, unit, volatility_class) "
+                    "VALUES (?, ?, ?, ?, ?) ON CONFLICT(module_id, marker_id) DO UPDATE SET "
+                    "description=excluded.description, unit=excluded.unit, volatility_class=excluded.volatility_class",
+                    (mod["module_id"], mk["marker_id"], mk.get("description"), mk.get("unit"), mk.get("volatility_class")),
+                )
+        conn.commit()
+
+def _datapoint_table(subject_id: str, module_id: str, marker_id: str) -> str:
+    """Returns the DB table name for a given (subject, module, marker) triple."""
+    return f"{subject_id}__{module_id}__{marker_id}"
+
+def _ensure_datapoint_table(conn, table_name: str):
+    """Creates the per-subject-marker table if it does not yet exist."""
+    conn.execute(f"""
+        CREATE TABLE IF NOT EXISTS "{table_name}" (
+            id           INTEGER PRIMARY KEY,
+            measured_at  TEXT NOT NULL UNIQUE,
+            value        REAL NOT NULL,
+            unit         TEXT,
+            data_quality TEXT,
+            created_at   TEXT NOT NULL
+        )
+    """)
+
+# Walks every index.json under rawdata_root and upserts all datapoints into per-subject-marker tables
+def sync_datapoints(db_path: str, rawdata_root: str):
+    if not os.path.isdir(rawdata_root):
+        return
+    with get_connection(db_path) as conn:
+        for subject_id in os.listdir(rawdata_root):
+            subject_dir = os.path.join(rawdata_root, subject_id)
+            if not os.path.isdir(subject_dir):
+                continue
+            for module_id in os.listdir(subject_dir):
+                module_dir = os.path.join(subject_dir, module_id)
+                if not os.path.isdir(module_dir):
+                    continue
+                for marker_id in os.listdir(module_dir):
+                    marker_dir = os.path.join(module_dir, marker_id)
+                    index_path = os.path.join(marker_dir, "index.json")
+                    if not os.path.isfile(index_path):
+                        continue
+                    with open(index_path, "r", encoding="utf-8") as f:
+                        index = json.load(f)
+                    table = _datapoint_table(subject_id, module_id, marker_id)
+                    _ensure_datapoint_table(conn, table)
+                    for entry in index.get("entries", []):
+                        file_path = os.path.join(marker_dir, entry["file"])
+                        if not os.path.isfile(file_path):
+                            continue
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            dp = json.load(f)
+                        conn.execute(
+                            f'INSERT INTO "{table}" (measured_at, value, unit, data_quality, created_at) '
+                            f'VALUES (?, ?, ?, ?, ?) ON CONFLICT(measured_at) DO UPDATE SET '
+                            f'value=excluded.value, unit=excluded.unit, data_quality=excluded.data_quality, created_at=excluded.created_at',
+                            (dp["measured_at"], dp["value"], dp.get("unit"), dp.get("data_quality"), dp.get("created_at", "")),
+                        )
         conn.commit()
 
 # Scans marker reference range jsons and upserts into zone_references table on startup

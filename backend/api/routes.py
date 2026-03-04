@@ -16,9 +16,8 @@ from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from pydantic import BaseModel
 
 from backend.core.storage.data_reader import read_timeseries
-from backend.startup.database_logistics import get_connection
+from backend.startup.database_logistics import get_connection, _datapoint_table, _ensure_datapoint_table
 from backend.core.analysis.trajectory_computer import compute_trajectory
-from backend.startup.database_logistics import get_connection
 from backend.core.output.report_generator import save_timegraph_report
 
 router = APIRouter()
@@ -79,7 +78,7 @@ class MarkerUpdate(BaseModel):
     vulnerability_margin: float
 
 class DatapointCreate(BaseModel):
-    timestamp: str
+    measured_at: str
     value: float
     unit: str
     data_quality: str = "good"
@@ -272,6 +271,12 @@ def post_module(body: ModuleCreate, request: Request):
     })
     _write_modules(path, modules)
     request.app.state.modules = modules
+    with get_connection(request.app.state.db_path) as conn:
+        conn.execute(
+            "INSERT INTO modules (module_id, description, format) VALUES (?, ?, ?)",
+            (body.module_id, body.description, body.format),
+        )
+        conn.commit()
     return {"module_id": body.module_id}
 
 # Edit existing module
@@ -285,6 +290,12 @@ def put_module(module_id: str, body: ModuleUpdate, request: Request):
     mod["description"] = body.description
     _write_modules(path, modules)
     request.app.state.modules = modules
+    with get_connection(request.app.state.db_path) as conn:
+        conn.execute(
+            "UPDATE modules SET description=? WHERE module_id=?",
+            (body.description, module_id),
+        )
+        conn.commit()
     return {"module_id": module_id}
 
 # Delete existing module
@@ -298,6 +309,19 @@ def delete_module(module_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Module not found")
     _write_modules(path, modules)
     request.app.state.modules = modules
+    import shutil
+    references_root = request.app.state.references_root
+    ref_module_dir = os.path.join(references_root, module_id)
+    if os.path.isdir(ref_module_dir):
+        deleted_refs = os.path.join(os.path.dirname(references_root), "deleted_reference_ranges")
+        os.makedirs(deleted_refs, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        shutil.move(ref_module_dir, os.path.join(deleted_refs, f"{module_id}_{ts}"))
+    with get_connection(request.app.state.db_path) as conn:
+        conn.execute("DELETE FROM markers WHERE module_id=?", (module_id,))
+        conn.execute("DELETE FROM modules WHERE module_id=?", (module_id,))
+        conn.execute("DELETE FROM zone_references WHERE module_id=?", (module_id,))
+        conn.commit()
     return {"module_id": module_id}
 
 # Create new marker data
@@ -334,11 +358,16 @@ def post_marker(module_id: str, body: MarkerCreate, request: Request):
     }
     with open(os.path.join(ref_dir, f"{body.marker_id}.json"), "w", encoding="utf-8") as f:
         json.dump(ref_data, f, indent=2)
-    # Upsert generic zone_references row
+    # Upsert generic zone_references row and insert into markers table
     with get_connection(db_path) as conn:
         conn.execute(
             "INSERT OR REPLACE INTO zone_references (module_id, marker_id, sex, age, healthy_min, healthy_max, vulnerability_margin) VALUES (?, ?, NULL, NULL, ?, ?, ?)",
-            (module_id, body.marker_id, body.healthy_min, body.healthy_max, body.vulnerability_margin),   
+            (module_id, body.marker_id, body.healthy_min, body.healthy_max, body.vulnerability_margin),
+        )
+        conn.execute(
+            "INSERT INTO markers (module_id, marker_id, description, unit, volatility_class) VALUES (?, ?, ?, ?, ?)"
+            " ON CONFLICT(module_id, marker_id) DO UPDATE SET description=excluded.description, unit=excluded.unit, volatility_class=excluded.volatility_class",
+            (module_id, body.marker_id, body.description, body.unit, body.volatility_class),
         )
         conn.commit()
     return {"module_id": module_id, "marker_id": body.marker_id}
@@ -379,7 +408,11 @@ def put_marker(module_id: str, marker_id: str, body: MarkerUpdate, request: Requ
     with get_connection(db_path) as conn:
         conn.execute(
             "INSERT OR REPLACE INTO zone_references (module_id, marker_id, sex, age, healthy_min, healthy_max, vulnerability_margin) VALUES (?, ?, NULL, NULL, ?, ?, ?)",
-            (module_id, marker_id, body.healthy_min, body.healthy_max, body.vulnerability_margin),        
+            (module_id, marker_id, body.healthy_min, body.healthy_max, body.vulnerability_margin),
+        )
+        conn.execute(
+            "UPDATE markers SET description=?, unit=?, volatility_class=? WHERE module_id=? AND marker_id=?",
+            (body.description, body.unit, body.volatility_class, module_id, marker_id),
         )
         conn.commit()
     return {"module_id": module_id, "marker_id": marker_id}
@@ -398,6 +431,18 @@ def delete_marker(module_id: str, marker_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Marker not found")
     _write_modules(path, modules)
     request.app.state.modules = modules
+    import shutil
+    references_root = request.app.state.references_root
+    ref_path = os.path.join(references_root, module_id, f"{marker_id}.json")
+    if os.path.isfile(ref_path):
+        deleted_refs = os.path.join(os.path.dirname(references_root), "deleted_reference_ranges", module_id)
+        os.makedirs(deleted_refs, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        shutil.move(ref_path, os.path.join(deleted_refs, f"{marker_id}_{ts}.json"))
+    with get_connection(request.app.state.db_path) as conn:
+        conn.execute("DELETE FROM markers WHERE module_id=? AND marker_id=?", (module_id, marker_id))
+        conn.execute("DELETE FROM zone_references WHERE module_id=? AND marker_id=? AND sex IS NULL AND age IS NULL", (module_id, marker_id))
+        conn.commit()
     return {"module_id": module_id, "marker_id": marker_id}
 
 # List all datasets that exists for a subject
@@ -444,7 +489,7 @@ def get_dataset(subject_id: str, module_id: str, marker_id: str, request: Reques
         with open(file_path, "r", encoding="utf-8") as f:
             dp = json.load(f)
         rows.append({
-            "timestamp": dp.get("timestamp"),
+            "measured_at": dp.get("measured_at"),
             "value": dp.get("value"),
             "unit": dp.get("unit"),
             "data_quality": dp.get("data_quality"),
@@ -466,27 +511,39 @@ Request):
     else:
         index = {"subject_id": subject_id, "module_id": module_id, "marker_id": marker_id, "entries": []} 
     # Build filename from timestamp
-    safe_ts = body.timestamp.replace(":", "-").replace("+", "").rstrip("Z") + "Z"
+    safe_ts = body.measured_at.replace(":", "-").replace("+", "").rstrip("Z") + "Z"
     filename = f"{safe_ts}.json"
     if any(e["file"] == filename for e in index["entries"]):
-        raise HTTPException(status_code=409, detail="A datapoint with this timestamp already exists")     
+        raise HTTPException(status_code=409, detail="A datapoint with this timestamp already exists")
     # Write datapoint file
+    created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     dp = {
         "schema_version": "1.0",
         "module_id": module_id,
         "marker_id": marker_id,
         "subject_id": subject_id,
-        "timestamp": body.timestamp,
+        "measured_at": body.measured_at,
         "value": body.value,
         "unit": body.unit,
         "data_quality": body.data_quality,
+        "created_at": created_at,
     }
     with open(os.path.join(marker_dir, filename), "w", encoding="utf-8") as f:
         json.dump(dp, f, indent=2)
     # Append to index
-    index["entries"].append({"timestamp": body.timestamp, "file": filename})
-    index["entries"].sort(key=lambda e: e["timestamp"])
+    index["entries"].append({"measured_at": body.measured_at, "file": filename})
+    index["entries"].sort(key=lambda e: e["measured_at"])
     _save_index(index_path, index)
+    table = _datapoint_table(subject_id, module_id, marker_id)
+    with get_connection(request.app.state.db_path) as conn:
+        _ensure_datapoint_table(conn, table)
+        conn.execute(
+            f'INSERT INTO "{table}" (measured_at, value, unit, data_quality, created_at) '
+            f'VALUES (?, ?, ?, ?, ?) ON CONFLICT(measured_at) DO UPDATE SET '
+            f'value=excluded.value, unit=excluded.unit, data_quality=excluded.data_quality',
+            (body.measured_at, body.value, body.unit, body.data_quality, created_at),
+        )
+        conn.commit()
     return {"file": filename}
 
 #Add new datapoint via uploading JSON file
@@ -502,7 +559,7 @@ UploadFile = File(...)):
         dp = json.loads(content)
     except json.JSONDecodeError:
         raise HTTPException(status_code=422, detail="Uploaded file is not valid JSON")
-    for key in ("timestamp", "value", "unit"):
+    for key in ("measured_at", "value", "unit"):
         if key not in dp:
             raise HTTPException(status_code=422, detail=f"Missing required field: {key}")
     # Load or create index
@@ -510,21 +567,32 @@ UploadFile = File(...)):
         with open(index_path, "r", encoding="utf-8") as f:
             index = json.load(f)
     else:
-        index = {"subject_id": subject_id, "module_id": module_id, "marker_id": marker_id, "entries": []} 
-    safe_ts = dp["timestamp"].replace(":", "-").replace("+", "").rstrip("Z") + "Z"
+        index = {"subject_id": subject_id, "module_id": module_id, "marker_id": marker_id, "entries": []}
+    safe_ts = dp["measured_at"].replace(":", "-").replace("+", "").rstrip("Z") + "Z"
     filename = f"{safe_ts}.json"
     if any(e["file"] == filename for e in index["entries"]):
-        raise HTTPException(status_code=409, detail="A datapoint with this timestamp already exists")     
+        raise HTTPException(status_code=409, detail="A datapoint with this timestamp already exists")
+    created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     with open(os.path.join(marker_dir, filename), "wb") as f:
         f.write(content)
-    index["entries"].append({"timestamp": dp["timestamp"], "file": filename})
-    index["entries"].sort(key=lambda e: e["timestamp"])
+    index["entries"].append({"measured_at": dp["measured_at"], "file": filename})
+    index["entries"].sort(key=lambda e: e["measured_at"])
     _save_index(index_path, index)
+    table = _datapoint_table(subject_id, module_id, marker_id)
+    with get_connection(request.app.state.db_path) as conn:
+        _ensure_datapoint_table(conn, table)
+        conn.execute(
+            f'INSERT INTO "{table}" (measured_at, value, unit, data_quality, created_at) '
+            f'VALUES (?, ?, ?, ?, ?) ON CONFLICT(measured_at) DO UPDATE SET '
+            f'value=excluded.value, unit=excluded.unit, data_quality=excluded.data_quality',
+            (dp["measured_at"], dp["value"], dp.get("unit"), dp.get("data_quality", "good"), created_at),
+        )
+        conn.commit()
     return {"file": filename}
 
-# Delete a single datapoint by timestamp
-@router.delete("/subjects/{subject_id}/datasets/{module_id}/{marker_id}/{timestamp}")
-def delete_datapoint(subject_id: str, module_id: str, marker_id: str, timestamp: str, request: Request):  
+# Delete a single datapoint by measured_at
+@router.delete("/subjects/{subject_id}/datasets/{module_id}/{marker_id}/{measured_at}")
+def delete_datapoint(subject_id: str, module_id: str, marker_id: str, measured_at: str, request: Request):
     rawdata_root = request.app.state.rawdata_root
     marker_dir = os.path.join(rawdata_root, subject_id, module_id, marker_id)
     index_path = os.path.join(marker_dir, "index.json")
@@ -532,15 +600,24 @@ def delete_datapoint(subject_id: str, module_id: str, marker_id: str, timestamp:
         raise HTTPException(status_code=404, detail="Dataset not found")
     with open(index_path, "r", encoding="utf-8") as f:
         index = json.load(f)
-    entry = next((e for e in index["entries"] if e["timestamp"] == timestamp), None)
+    entry = next((e for e in index["entries"] if e["measured_at"] == measured_at), None)
     if entry is None:
         raise HTTPException(status_code=404, detail="Datapoint not found")
     file_path = os.path.join(marker_dir, entry["file"])
     if os.path.isfile(file_path):
-        os.remove(file_path)
-    index["entries"] = [e for e in index["entries"] if e["timestamp"] != timestamp]
+        import shutil
+        silo = os.path.join(os.path.dirname(rawdata_root), "deleted_datapoints", subject_id, module_id, marker_id)
+        os.makedirs(silo, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        silo_name = entry["file"].replace(".json", f"_{ts}.json")
+        shutil.move(file_path, os.path.join(silo, silo_name))
+    index["entries"] = [e for e in index["entries"] if e["measured_at"] != measured_at]
     _save_index(index_path, index)
-    return {"timestamp": timestamp}
+    table = _datapoint_table(subject_id, module_id, marker_id)
+    with get_connection(request.app.state.db_path) as conn:
+        conn.execute(f'DELETE FROM "{table}" WHERE measured_at=?', (measured_at,))
+        conn.commit()
+    return {"measured_at": measured_at}
 
 # Delete an entire marker dataset
 @router.delete("/subjects/{subject_id}/datasets/{module_id}/{marker_id}")
@@ -550,7 +627,14 @@ def delete_dataset(subject_id: str, module_id: str, marker_id: str, request: Req
     marker_dir = os.path.join(rawdata_root, subject_id, module_id, marker_id)
     if not os.path.isdir(marker_dir):
         raise HTTPException(status_code=404, detail="Dataset not found")
-    shutil.rmtree(marker_dir)
+    silo = os.path.join(os.path.dirname(rawdata_root), "deleted_datasets", subject_id, module_id)
+    os.makedirs(silo, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    shutil.move(marker_dir, os.path.join(silo, f"{marker_id}_{ts}"))
+    table = _datapoint_table(subject_id, module_id, marker_id)
+    with get_connection(request.app.state.db_path) as conn:
+        conn.execute(f'DROP TABLE IF EXISTS "{table}"')
+        conn.commit()
     return {"module_id": module_id, "marker_id": marker_id}
 
 #  Return calculation results needed to post timegraph and also save them to the database

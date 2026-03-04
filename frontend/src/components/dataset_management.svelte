@@ -63,7 +63,7 @@ fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    timestamp: new Date(dpTimestamp).toISOString(),
+                    measured_at: new Date(dpTimestamp).toISOString(),
                     value: parseFloat(dpValue),
                     unit: dpUnit,
                     data_quality: dpQuality,
@@ -100,10 +100,10 @@ fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id
         }
     }
 
-    async function handleDeleteDatapoint(timestamp) {
-        if (!confirm(`Delete datapoint at ${timestamp}?`)) return;
+    async function handleDeleteDatapoint(measured_at) {
+        if (!confirm(`Delete datapoint at ${measured_at}?`)) return;
         const res = await fetch(
-            `${BASE_URL}/subjects/${selectedSubject}/datasets/${selectedDataset.module_id}/${selectedDataset.marker_id}/${encodeURIComponent(timestamp)}`,
+            `${BASE_URL}/subjects/${selectedSubject}/datasets/${selectedDataset.module_id}/${selectedDataset.marker_id}/${encodeURIComponent(measured_at)}`,
             { method: "DELETE" }
         );
         if (res.ok) {
@@ -207,12 +207,12 @@ handleDeleteDataset(ds.module_id, ds.marker_id)}>Delete</button></td>
                         <tbody>
                             {#each datapoints as dp}
                                 <tr>
-                                    <td>{dp.timestamp}</td>
+                                    <td>{dp.measured_at}</td>
                                     <td>{dp.value}</td>
                                     <td>{dp.unit}</td>
                                     <td>{dp.data_quality}</td>
                                     <td><button type="button" class="delete_btn" onclick={() =>
-handleDeleteDatapoint(dp.timestamp)}>Delete</button></td>
+handleDeleteDatapoint(dp.measured_at)}>Delete</button></td>
                                 </tr>
                             {/each}
                         </tbody>

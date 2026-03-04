@@ -38,7 +38,7 @@
     </div>
 
     <div class="nav_link_container">
-      <a href="http://localhost:5173/#add_module_page">Add New Module</a>
+      <a href="http://localhost:5173/#add_module_page">Module Management</a>
     </div>
 
     <div class="nav_link_container">

@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.startup.module_loader import load_modules
-from backend.startup.database_logistics import init_db, sync_subjects, sync_zone_references
+from backend.startup.database_logistics import init_db, sync_subjects, sync_zone_references, sync_modules, sync_datapoints
 from backend.api.routes import router
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))                           # resolves to: "c:\Users\kevin\proj\asHDT\backend"
@@ -34,6 +34,8 @@ def startup():
     init_db(DB_PATH)
     sync_subjects(DB_PATH, RAWDATA_ROOT)
     sync_zone_references(DB_PATH, REFERENCES_ROOT)
+    sync_modules(DB_PATH, MODULES_PATH)
+    sync_datapoints(DB_PATH, RAWDATA_ROOT)
     app.state.modules     = load_modules(MODULES_PATH)
     app.state.modules_path = MODULES_PATH
     app.state.db_path      = DB_PATH

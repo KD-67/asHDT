@@ -59,6 +59,9 @@
                 <div class="functional_file">table: subjects</div>
                 <div class="functional_file">table: timegraph_reports</div>
                 <div class="functional_file">table: zone_references</div>
+                <div class="functional_file">table: modules</div>
+                <div class="functional_file">table: markers</div>
+                <div class="functional_file">table: {"{subject}__{module}__{marker}"} (dynamic, per dataset)</div>
             </div>
         </div>
 
@@ -66,16 +69,15 @@
             <span>modules</span>
             <div>
                 <span>fitness</span>
-                <div class="functional_file">VO2max</div>
-                <div class="functional_file">100m Sprint</div>
+                <div class="functional_file">vo2max</div>
+                <div class="functional_file">100m_sprint</div>
             </div>
-            <div>vtf_stresstest</div>
         </div>
 
         <div id="reference_ranges">
-            <span>reference_ranges/</span>
+            <span>reference_ranges</span>
             <div>
-                <span>fitness/</span>
+                <span>fitness</span>
                 <div class="functional_file">vo2max.json</div>
             </div>
         </div>
