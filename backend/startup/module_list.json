@@ -36,7 +36,14 @@
       "module_id": "body_composition",
       "description": "Collection of dynamic measurements of the subject's body composition",
       "format": "json",
-      "markers": []
+      "markers": [
+        {
+          "marker_id": "body_mass",
+          "description": "Mass of subject in kilograms",
+          "unit": "kg",
+          "volatility_class": "medium_term"
+        }
+      ]
     }
   ]
 }

@@ -10,6 +10,9 @@
     let datapoints = $state([]);
     let statusMessage = $state("");
     let statusOk = $state(true);
+    let modules = $state([]);
+    let newDsModule = $state("");
+    let newDsMarker = $state("");
 
     // Add datapoint form
     let addTab = $state("form"); // "form" or "upload"
@@ -20,9 +23,32 @@
     let uploadFile = $state(null);
 
     onMount(async () => {
-        const res = await fetch(`${BASE_URL}/subjects`);
-        subjects = await res.json();
+        const [subRes, modRes] = await Promise.all([
+            fetch(`${BASE_URL}/subjects`),
+            fetch(`${BASE_URL}/modules`),
+        ]);
+        subjects = await subRes.json();
+        const modData = await modRes.json();
+        modules = modData.modules ?? [];
     });
+
+    let availableMarkers = $derived(
+        modules.find(m => m.module_id === newDsModule)?.markers ?? []
+    );
+
+    $effect(() => {
+        newDsModule;
+        newDsMarker = "";
+    });
+
+    function handleOpenDataset() {
+        if (!newDsModule || !newDsMarker) {
+            setStatus("Select a module and marker first.", false);
+            return;
+        }
+        loadDatapoints(newDsModule, newDsMarker);
+        statusMessage = "";
+    }
 
     function setStatus(msg, ok = true) {
         statusMessage = msg;
@@ -49,8 +75,10 @@ fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id
         if (res.ok) {
             datapoints = await res.json();
             if (datapoints.length > 0) dpUnit = datapoints[0].unit ?? "";
+        } else if (res.status === 404) {
+            setStatus("No datapoints found for this dataset.", true);
         } else {
-            setStatus("Failed to load datapoints.", false);
+            setStatus(`Failed to load datapoints (${res.status}).`, false);
         }
     }
 
@@ -150,6 +178,28 @@ loadDatasets(selectedSubject)}>
             </select>
         </div>
 
+        {#if selectedSubject}
+            <div id="new_dataset_row">
+                <label for="nd_module">Module</label>
+                <select id="nd_module" bind:value={newDsModule}>
+                    <option value="">-- module --</option>
+                    {#each modules as m}
+                        <option value={m.module_id}>{m.module_id}</option>
+                    {/each}
+                </select>
+
+                <label for="nd_marker">Marker</label>
+                <select id="nd_marker" bind:value={newDsMarker} disabled={!newDsModule}>
+                    <option value="">-- marker --</option>
+                    {#each availableMarkers as mk}
+                        <option value={mk.marker_id}>{mk.marker_id}</option>
+                    {/each}
+                </select>
+
+                <button type="button" onclick={handleOpenDataset}>Open</button>
+            </div>
+        {/if}
+
         {#if statusMessage}
             <p id="status_msg" class:error={!statusOk}>{statusMessage}</p>
         {/if}
@@ -168,20 +218,21 @@ loadDatasets(selectedSubject)}>
                                 <th>Marker</th>
                                 <th>Entries</th>
                                 <th></th>
-                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
                             {#each datasets as ds}
-                                <tr class:selected_row={selectedDataset?.module_id === ds.module_id &&    
-selectedDataset?.marker_id === ds.marker_id}>
+                                <tr class:selected_row={selectedDataset?.module_id === ds.module_id &&
+selectedDataset?.marker_id === ds.marker_id}
+                                    onclick={() => loadDatapoints(ds.module_id, ds.marker_id)}
+                                    style="cursor: pointer;">
                                     <td>{ds.module_id}</td>
                                     <td>{ds.marker_id}</td>
                                     <td>{ds.entry_count}</td>
-                                    <td><button type="button" onclick={() => loadDatapoints(ds.module_id, 
-ds.marker_id)}>View</button></td>
-                                    <td><button type="button" class="delete_btn" onclick={() =>
-handleDeleteDataset(ds.module_id, ds.marker_id)}>Delete</button></td>
+                                    <td><button type="button" class="delete_btn" onclick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteDataset(ds.module_id, ds.marker_id);
+                                    }}>Delete</button></td>
                                 </tr>
                             {/each}
                         </tbody>
@@ -274,6 +325,13 @@ handleDeleteDatapoint(dp.measured_at)}>Delete</button></td>
 
     #subject_selector {
         width: 100%;
+    }
+
+    #new_dataset_row {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
 
     #status_msg {

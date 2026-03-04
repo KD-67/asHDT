@@ -215,11 +215,10 @@
 
                       {#if editingModule === mod.module_id}
                           <div class="inline_form">
-                              <label>Description</label>
-                              <input type="text" bind:value={editModuleDescription}>
+                              <label>Description <input type="text" bind:value={editModuleDescription}></label>
                               <button type="button" onclick={() =>
   handleEditModule(mod.module_id)}>Save</button>
-                              <button type="button" onclick={() => editingModule = ""}>Cancel</button>      
+                              <button type="button" onclick={() => editingModule = ""}>Cancel</button>
                           </div>
                       {/if}
 
@@ -242,26 +241,20 @@
                                   {#if editingMarker?.module_id === mod.module_id &&
   editingMarker?.marker_id === mk.marker_id}
                                       <div class="inline_form marker_edit_form">
-                                          <label>Description</label><input type="text"
-  bind:value={editMarker.description}>
-                                          <label>Unit</label><input type="text"
-  bind:value={editMarker.unit}>
-                                          <label>Volatility class</label>
-                                          <select bind:value={editMarker.volatility_class}>
-                                              <option value="short_term">short_term</option>
-                                              <option value="medium_term">medium_term</option>
-                                              <option value="long_term">long_term</option>
-                                          </select>
-                                          <label>Healthy min</label><input type="number"
-  bind:value={editMarker.healthy_min}>
-                                          <label>Healthy max</label><input type="number"
-  bind:value={editMarker.healthy_max}>
-                                          <label>Vulnerability margin</label><input type="number"
-  bind:value={editMarker.vulnerability_margin}>
-                                          <button type="button" onclick={() =>
-  handleEditMarker(mod.module_id, mk.marker_id)}>Save</button>
-                                          <button type="button" onclick={() => editingMarker =
-  null}>Cancel</button>
+                                          <label>Description <input type="text" bind:value={editMarker.description}></label>
+                                          <label>Unit <input type="text" bind:value={editMarker.unit}></label>
+                                          <label>Volatility class
+                                              <select bind:value={editMarker.volatility_class}>
+                                                  <option value="short_term">short_term</option>
+                                                  <option value="medium_term">medium_term</option>
+                                                  <option value="long_term">long_term</option>
+                                              </select>
+                                          </label>
+                                          <label>Healthy min <input type="number" bind:value={editMarker.healthy_min}></label>
+                                          <label>Healthy max <input type="number" bind:value={editMarker.healthy_max}></label>
+                                          <label>Vulnerability margin <input type="number" bind:value={editMarker.vulnerability_margin}></label>
+                                          <button type="button" onclick={() => handleEditMarker(mod.module_id, mk.marker_id)}>Save</button>
+                                          <button type="button" onclick={() => editingMarker = null}>Cancel</button>
                                       </div>
                                   {/if}
                               {/each}
@@ -270,24 +263,20 @@
                               {#if addingMarkerTo === mod.module_id}
                                   <div class="inline_form marker_edit_form">
                                       <strong>New marker</strong>
-                                      <label>Marker ID</label><input type="text"
-  bind:value={newMarker.marker_id}>
-                                      <label>Description</label><input type="text"
-  bind:value={newMarker.description}>
-                                      <label>Unit</label><input type="text" bind:value={newMarker.unit}>    
-                                      <label>Volatility class</label>
-                                      <select bind:value={newMarker.volatility_class}>
-                                          <option value="">-- select --</option>
-                                          <option value="short_term">short_term</option>
-                                          <option value="medium_term">medium_term</option>
-                                          <option value="long_term">long_term</option>
-                                      </select>
-                                      <label>Healthy min</label><input type="number"
-  bind:value={newMarker.healthy_min}>
-                                      <label>Healthy max</label><input type="number"
-  bind:value={newMarker.healthy_max}>
-                                      <label>Vulnerability margin</label><input type="number"
-  bind:value={newMarker.vulnerability_margin}>
+                                      <label>Marker ID <input type="text" bind:value={newMarker.marker_id}></label>
+                                      <label>Description <input type="text" bind:value={newMarker.description}></label>
+                                      <label>Unit <input type="text" bind:value={newMarker.unit}></label>
+                                      <label>Volatility class
+                                          <select bind:value={newMarker.volatility_class}>
+                                              <option value="">-- select --</option>
+                                              <option value="short_term">short_term</option>
+                                              <option value="medium_term">medium_term</option>
+                                              <option value="long_term">long_term</option>
+                                          </select>
+                                      </label>
+                                      <label>Healthy min <input type="number" bind:value={newMarker.healthy_min}></label>
+                                      <label>Healthy max <input type="number" bind:value={newMarker.healthy_max}></label>
+                                      <label>Vulnerability margin <input type="number" bind:value={newMarker.vulnerability_margin}></label>
                                       <button type="button" onclick={() =>
   handleAddMarker(mod.module_id)}>Add marker</button>
                                       <button type="button" onclick={() => addingMarkerTo =
