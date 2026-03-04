@@ -158,7 +158,7 @@ def compute_trajectory(
         transition = _time_to_transition(coeffs, vulnerability_margin, x)
 
         result_points.append({
-            "timestamp":                dp["timestamp"],
+            "timestamp":                dp["measured_at"],
             "x_hours":                  round(x, 6),
             "raw_value":                dp["value"],
             "data_quality":             dp.get("data_quality", "good"),

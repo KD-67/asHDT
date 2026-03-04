@@ -68,19 +68,20 @@
         <div id="modules">
             <span>modules</span>
             <div>
+                <span>vtf_stresstest</span>
+                <div class="functional_file">microgravity_resilience_score</div>
+            </div>
+            <div>
                 <span>fitness</span>
                 <div class="functional_file">vo2max</div>
                 <div class="functional_file">100m_sprint</div>
             </div>
-        </div>
-
-        <div id="reference_ranges">
-            <span>reference_ranges</span>
             <div>
-                <span>fitness</span>
-                <div class="functional_file">vo2max.json</div>
+                <span>body_composition</span>
+                <div class="functional_file">body_mass</div>
             </div>
         </div>
+
     </div>
     
 </main>

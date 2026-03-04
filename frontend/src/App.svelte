@@ -1,6 +1,7 @@
 <script>
     import { onMount } from "svelte";
     import HomeDiv from "./components/home_div.svelte";
+    import DataManagementPortal from "./components/data_management_portal.svelte";
     import RequestReportForm from "./components/request_report_form.svelte";
     import SubjectManagement from "./components/subject_management.svelte";
     import AddModulePage from "./components/add_module_page.svelte";
@@ -28,21 +29,13 @@
     <div class="nav_link_container">
       <a href="http://localhost:5173/#home">Home</a>
     </div>
+
+    <div class="nav_link_container">
+      <a href="http://localhost:5173/#data_management_portal">Data Management Portal</a>
+    </div>
     
     <div class="nav_link_container">
       <a href="http://localhost:5173/#request_report_form">Request Report</a>
-    </div>
-
-    <div class="nav_link_container">
-      <a href="http://localhost:5173/#new_user_form">Subject Management</a>
-    </div>
-
-    <div class="nav_link_container">
-      <a href="http://localhost:5173/#add_module_page">Module Management</a>
-    </div>
-
-    <div class="nav_link_container">
-      <a href="http://localhost:5173/#dataset_management">Dataset Management</a>
     </div>
 
     <div class="nav_link_container">
@@ -53,7 +46,9 @@
   
 
   {#if currentPage == "home"}
-    <HomeDiv />  
+    <HomeDiv />
+  {:else if currentPage == "data_management_portal"}
+    <DataManagementPortal />  
   {:else if currentPage == "request_report_form"}
     <RequestReportForm />
   {:else if currentPage == "new_user_form"}

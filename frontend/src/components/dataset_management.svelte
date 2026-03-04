@@ -387,6 +387,7 @@ handleDeleteDatapoint(dp.measured_at)}>Delete</button></td>
 <style>
     #main_container {
         border: 1px solid black;
+        background-color: rgb(255, 216, 216);
         display: flex;
         flex-wrap: wrap;
         gap: 5px;
