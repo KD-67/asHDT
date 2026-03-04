@@ -21,25 +21,25 @@
 
 <main>
   <header>
-    <h1>
+    <a id="main_page_header" href="http://localhost:5173/#home">
     asHDT: Health Data Tracker 
-  </h1>
+    </a>
 
   <nav id="nav_bar">
     <div class="nav_link_container">
-      <a href="http://localhost:5173/#home">Home</a>
+      <a class="nav_link" href="http://localhost:5173/#home">Home</a>
     </div>
 
     <div class="nav_link_container">
-      <a href="http://localhost:5173/#data_management_portal">Data Management Portal</a>
+      <a class="nav_link" href="http://localhost:5173/#data_management_portal">Data Management Portal</a>
     </div>
     
     <div class="nav_link_container">
-      <a href="http://localhost:5173/#request_report_form">Request Report</a>
+      <a class="nav_link" href="http://localhost:5173/#request_report_form">Request Report</a>
     </div>
 
     <div class="nav_link_container">
-      <a href="http://localhost:5173/#help">Help</a>
+      <a class="nav_link" href="http://localhost:5173/#help">Help</a>
     </div>
   </nav>
 </header>
@@ -72,8 +72,10 @@
     align-items: center;
   }
 
-  h1 {
-    border: 1px solid black;
+  #main_page_header {
+    text-decoration: none;
+    color: black;
+    font-size: 50px;
   }
 
   #nav_bar {
@@ -95,5 +97,10 @@
 
   .nav_link_container:hover > a {
     font-weight: bold;
+  }
+
+  .nav_link {
+    text-decoration: none;
+    color: black;
   }
 </style>
