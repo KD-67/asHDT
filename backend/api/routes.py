@@ -89,6 +89,13 @@ class DatapointUpdate(BaseModel):
     unit: str
     data_quality: str = "good"
 
+class DemographicZoneCreate(BaseModel):
+    sex: str
+    age: int
+    healthy_min: float
+    healthy_max: float
+    vulnerability_margin: float
+
 # Functions
 def _write_modules(path: str, data: dict):
     with open(path, "w", encoding="utf-8") as f:
@@ -96,6 +103,14 @@ def _write_modules(path: str, data: dict):
 
 def _save_index(index_path: str, data: dict):
     with open(index_path, "w", encoding ="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+def _read_ref_json(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def _write_ref_json(path: str, data: dict):
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 
@@ -450,6 +465,102 @@ def delete_marker(module_id: str, marker_id: str, request: Request):
         conn.execute("DELETE FROM zone_references WHERE module_id=? AND marker_id=? AND sex IS NULL AND age IS NULL", (module_id, marker_id))
         conn.commit()
     return {"module_id": module_id, "marker_id": marker_id}
+
+# GET demographic zone rows for a marker
+@router.get("/modules/{module_id}/markers/{marker_id}/zone-references")
+def get_zone_refs(module_id: str, marker_id: str, request: Request):
+    db_path = request.app.state.db_path
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            "SELECT sex, age, healthy_min, healthy_max, vulnerability_margin "
+            "FROM zone_references WHERE module_id=? AND marker_id=? AND sex IS NOT NULL "
+            "ORDER BY sex ASC, age ASC",
+            (module_id, marker_id),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+# POST — add one demographic zone row
+@router.post("/modules/{module_id}/markers/{marker_id}/zone-references", status_code=201)
+def post_zone_ref(module_id: str, marker_id: str, body: DemographicZoneCreate, request: Request):
+    db_path = request.app.state.db_path
+    references_root = request.app.state.references_root
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO zone_references "
+            "(module_id, marker_id, sex, age, healthy_min, healthy_max, vulnerability_margin) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (module_id, marker_id, body.sex, body.age, body.healthy_min, body.healthy_max, body.vulnerability_margin),
+        )
+        conn.commit()
+    ref_path = os.path.join(references_root, module_id, f"{marker_id}.json")
+    if os.path.isfile(ref_path):
+        ref_data = _read_ref_json(ref_path)
+    else:
+        ref_data = {"module_id": module_id, "marker_id": marker_id}
+    by_sex = ref_data.setdefault("by_sex", {})
+    sex_entry = by_sex.setdefault(body.sex, {})
+    by_age = sex_entry.setdefault("by_age", {})
+    by_age[str(body.age)] = {
+        "healthy_min": body.healthy_min,
+        "healthy_max": body.healthy_max,
+        "vulnerability_margin": body.vulnerability_margin,
+    }
+    _write_ref_json(ref_path, ref_data)
+    return {"module_id": module_id, "marker_id": marker_id, "sex": body.sex, "age": body.age}
+
+# PUT — update one demographic zone row
+@router.put("/modules/{module_id}/markers/{marker_id}/zone-references/{sex}/{age}")
+def put_zone_ref(module_id: str, marker_id: str, sex: str, age: int, body: ZoneBoundariesModel, request: Request):
+    db_path = request.app.state.db_path
+    references_root = request.app.state.references_root
+    with get_connection(db_path) as conn:
+        cur = conn.execute(
+            "UPDATE zone_references SET healthy_min=?, healthy_max=?, vulnerability_margin=? "
+            "WHERE module_id=? AND marker_id=? AND sex=? AND age=?",
+            (body.healthy_min, body.healthy_max, body.vulnerability_margin, module_id, marker_id, sex, age),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Demographic zone row not found")
+    ref_path = os.path.join(references_root, module_id, f"{marker_id}.json")
+    if os.path.isfile(ref_path):
+        ref_data = _read_ref_json(ref_path)
+        ref_data.setdefault("by_sex", {}).setdefault(sex, {}).setdefault("by_age", {})[str(age)] = {
+            "healthy_min": body.healthy_min,
+            "healthy_max": body.healthy_max,
+            "vulnerability_margin": body.vulnerability_margin,
+        }
+        _write_ref_json(ref_path, ref_data)
+    return {"module_id": module_id, "marker_id": marker_id, "sex": sex, "age": age}
+
+# DELETE — remove one demographic zone row
+@router.delete("/modules/{module_id}/markers/{marker_id}/zone-references/{sex}/{age}")
+def delete_zone_ref(module_id: str, marker_id: str, sex: str, age: int, request: Request):
+    db_path = request.app.state.db_path
+    references_root = request.app.state.references_root
+    with get_connection(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM zone_references WHERE module_id=? AND marker_id=? AND sex=? AND age=?",
+            (module_id, marker_id, sex, age),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Demographic zone row not found")
+    ref_path = os.path.join(references_root, module_id, f"{marker_id}.json")
+    if os.path.isfile(ref_path):
+        ref_data = _read_ref_json(ref_path)
+        by_sex = ref_data.get("by_sex", {})
+        sex_entry = by_sex.get(sex, {})
+        by_age = sex_entry.get("by_age", {})
+        by_age.pop(str(age), None)
+        if not by_age:
+            sex_entry.pop("by_age", None)
+        if not sex_entry:
+            by_sex.pop(sex, None)
+        if not by_sex:
+            ref_data.pop("by_sex", None)
+        _write_ref_json(ref_path, ref_data)
+    return {"module_id": module_id, "marker_id": marker_id, "sex": sex, "age": age}
 
 # List all datasets that exists for a subject
 @router.get("/subjects/{subject_id}/datasets")

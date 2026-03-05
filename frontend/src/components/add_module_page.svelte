@@ -27,6 +27,14 @@
       let editingMarker = $state(null); // { module_id, marker_id }
       let editMarker = $state(emptyMarker());
 
+      // Demographic zone refs
+      let expandedZoneRef = $state(null); // { module_id, marker_id } or null
+      let zoneRefRows = $state([]);
+      let addingDemoZone = $state(false);
+      let newDemoZone = $state({ sex: "M", age: "", healthy_min: "", healthy_max: "", vulnerability_margin: "" });
+      let editingDemoZone = $state(null); // { sex, age } of row being edited
+      let editDemoZone = $state({ healthy_min: "", healthy_max: "", vulnerability_margin: "" });
+
       function emptyMarker() {
           return { marker_id: "", description: "", unit: "", volatility_class: "", healthy_min: "",
   healthy_max: "", vulnerability_margin: "" };
@@ -164,6 +172,88 @@
           }
       }
 
+      // --- Demographic zone ref actions ---
+
+      async function toggleZoneRef(module_id, marker_id) {
+          if (expandedZoneRef?.module_id === module_id && expandedZoneRef?.marker_id === marker_id) {
+              expandedZoneRef = null;
+              zoneRefRows = [];
+              addingDemoZone = false;
+              editingDemoZone = null;
+          } else {
+              expandedZoneRef = { module_id, marker_id };
+              addingDemoZone = false;
+              editingDemoZone = null;
+              await loadZoneRefs(module_id, marker_id);
+          }
+      }
+
+      async function loadZoneRefs(module_id, marker_id) {
+          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}/zone-references`);
+          if (res.ok) {
+              zoneRefRows = await res.json();
+          } else {
+              setStatus("Failed to load zone references.", false);
+          }
+      }
+
+      async function handleAddDemoZone(module_id, marker_id) {
+          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}/zone-references`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                  sex: newDemoZone.sex,
+                  age: parseInt(newDemoZone.age),
+                  healthy_min: parseFloat(newDemoZone.healthy_min),
+                  healthy_max: parseFloat(newDemoZone.healthy_max),
+                  vulnerability_margin: parseFloat(newDemoZone.vulnerability_margin),
+              }),
+          });
+          if (res.ok) {
+              setStatus("Demographic zone row added.");
+              addingDemoZone = false;
+              newDemoZone = { sex: "M", age: "", healthy_min: "", healthy_max: "", vulnerability_margin: "" };
+              await loadZoneRefs(module_id, marker_id);
+          } else {
+              const err = await res.json();
+              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          }
+      }
+
+      async function handleEditDemoZone(module_id, marker_id, sex, age) {
+          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}/zone-references/${sex}/${age}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                  healthy_min: parseFloat(editDemoZone.healthy_min),
+                  healthy_max: parseFloat(editDemoZone.healthy_max),
+                  vulnerability_margin: parseFloat(editDemoZone.vulnerability_margin),
+              }),
+          });
+          if (res.ok) {
+              setStatus("Demographic zone row updated.");
+              editingDemoZone = null;
+              await loadZoneRefs(module_id, marker_id);
+          } else {
+              const err = await res.json();
+              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          }
+      }
+
+      async function handleDeleteDemoZone(module_id, marker_id, sex, age) {
+          if (!confirm(`Delete zone ref ${sex}/${age}?`)) return;
+          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}/zone-references/${sex}/${age}`, {
+              method: "DELETE",
+          });
+          if (res.ok) {
+              setStatus("Demographic zone row deleted.");
+              await loadZoneRefs(module_id, marker_id);
+          } else {
+              const err = await res.json();
+              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          }
+      }
+
       async function handleDeleteMarker(module_id, marker_id) {
           if (!confirm(`Delete marker "${marker_id}" from "${module_id}"?`)) return;
           const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}`, { method:        
@@ -232,11 +322,77 @@
                                       <span class="marker_id">{mk.marker_id}</span>
                                       <span class="marker_meta">{mk.description} — {mk.unit}
   ({mk.volatility_class})</span>
-                                      <button type="button" onclick={() => startEditMarker(mod.module_id,   
+                                      <button type="button" onclick={() => startEditMarker(mod.module_id,
   mk)}>Edit</button>
                                       <button type="button" class="delete_btn" onclick={() =>
   handleDeleteMarker(mod.module_id, mk.marker_id)}>Delete</button>
+                                      <button type="button" class="zone_refs_btn" onclick={() => toggleZoneRef(mod.module_id, mk.marker_id)}>Zone Refs</button>
                                   </div>
+
+                                  {#if expandedZoneRef?.module_id === mod.module_id && expandedZoneRef?.marker_id === mk.marker_id}
+                                      <div class="inline_form zone_refs_panel">
+                                          <strong style="width:100%">Demographic zone references — {mk.marker_id}</strong>
+                                          {#if zoneRefRows.length > 0}
+                                              <table class="zone_refs_table">
+                                                  <thead>
+                                                      <tr>
+                                                          <th>Sex</th><th>Age</th><th>Healthy Min</th><th>Healthy Max</th><th>Vulnerability Margin</th><th>Actions</th>
+                                                      </tr>
+                                                  </thead>
+                                                  <tbody>
+                                                      {#each zoneRefRows as row}
+                                                          {#if editingDemoZone?.sex === row.sex && editingDemoZone?.age === row.age}
+                                                              <tr>
+                                                                  <td>{row.sex}</td>
+                                                                  <td>{row.age}</td>
+                                                                  <td><input type="number" bind:value={editDemoZone.healthy_min} style="width:80px"></td>
+                                                                  <td><input type="number" bind:value={editDemoZone.healthy_max} style="width:80px"></td>
+                                                                  <td><input type="number" bind:value={editDemoZone.vulnerability_margin} style="width:80px"></td>
+                                                                  <td>
+                                                                      <button type="button" onclick={() => handleEditDemoZone(mod.module_id, mk.marker_id, row.sex, row.age)}>Save</button>
+                                                                      <button type="button" onclick={() => editingDemoZone = null}>Cancel</button>
+                                                                  </td>
+                                                              </tr>
+                                                          {:else}
+                                                              <tr>
+                                                                  <td>{row.sex}</td>
+                                                                  <td>{row.age}</td>
+                                                                  <td>{row.healthy_min}</td>
+                                                                  <td>{row.healthy_max}</td>
+                                                                  <td>{row.vulnerability_margin}</td>
+                                                                  <td>
+                                                                      <button type="button" onclick={() => { editingDemoZone = { sex: row.sex, age: row.age }; editDemoZone = { healthy_min: row.healthy_min, healthy_max: row.healthy_max, vulnerability_margin: row.vulnerability_margin }; }}>✏️</button>
+                                                                      <button type="button" class="delete_btn" onclick={() => handleDeleteDemoZone(mod.module_id, mk.marker_id, row.sex, row.age)}>✕</button>
+                                                                  </td>
+                                                              </tr>
+                                                          {/if}
+                                                      {/each}
+                                                  </tbody>
+                                              </table>
+                                          {:else}
+                                              <p style="color:#888;font-style:italic;width:100%">No demographic zone rows yet.</p>
+                                          {/if}
+
+                                          {#if addingDemoZone}
+                                              <div class="demo_zone_add_form">
+                                                  <label>Sex
+                                                      <select bind:value={newDemoZone.sex}>
+                                                          <option value="M">M</option>
+                                                          <option value="F">F</option>
+                                                      </select>
+                                                  </label>
+                                                  <label>Age <input type="number" bind:value={newDemoZone.age} style="width:60px"></label>
+                                                  <label>Healthy min <input type="number" bind:value={newDemoZone.healthy_min} style="width:80px"></label>
+                                                  <label>Healthy max <input type="number" bind:value={newDemoZone.healthy_max} style="width:80px"></label>
+                                                  <label>Vuln margin <input type="number" bind:value={newDemoZone.vulnerability_margin} style="width:80px"></label>
+                                                  <button type="button" onclick={() => handleAddDemoZone(mod.module_id, mk.marker_id)}>Add</button>
+                                                  <button type="button" onclick={() => addingDemoZone = false}>Cancel</button>
+                                              </div>
+                                          {:else}
+                                              <button type="button" onclick={() => addingDemoZone = true}>＋ Add row</button>
+                                          {/if}
+                                      </div>
+                                  {/if}
 
                                   {#if editingMarker?.module_id === mod.module_id &&
   editingMarker?.marker_id === mk.marker_id}
@@ -397,6 +553,16 @@
       .marker_edit_form input, .marker_edit_form select { width: 120px; }
 
       .add_marker_btn { margin-top: 5px; }
+
+      .zone_refs_btn { background-color: #d0e8ff; }
+
+      .zone_refs_panel { flex-direction: column; align-items: flex-start; }
+
+      .zone_refs_table { border-collapse: collapse; font-size: 0.85em; width: 100%; }
+      .zone_refs_table th, .zone_refs_table td { border: 1px solid #ccc; padding: 3px 6px; text-align: center; }
+      .zone_refs_table th { background: #eee; }
+
+      .demo_zone_add_form { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 0.85em; }
 
       form {
           background-color: lightblue;

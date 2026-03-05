@@ -4,21 +4,21 @@
   "generic": {
     "healthy_min": 35,
     "healthy_max": 60,
-    "vulnerability_margin": 5
+    "vulnerability_margin": 0.1
   },
   "by_sex": {
     "M": {
       "by_age": {
-        "20": { "healthy_min": 44, "healthy_max": 65, "vulnerability_margin": 5 },
-        "30": { "healthy_min": 40, "healthy_max": 60, "vulnerability_margin": 5 },
-        "40": { "healthy_min": 36, "healthy_max": 55, "vulnerability_margin": 5 }
+        "20": { "healthy_min": 44, "healthy_max": 65, "vulnerability_margin": 0.1 },
+        "30": { "healthy_min": 40, "healthy_max": 60, "vulnerability_margin": 0.1 },
+        "40": { "healthy_min": 36, "healthy_max": 55, "vulnerability_margin": 0.1 }
       }
     },
     "F": {
       "by_age": {
-        "20": { "healthy_min": 37, "healthy_max": 55, "vulnerability_margin": 5 },
-        "30": { "healthy_min": 33, "healthy_max": 50, "vulnerability_margin": 5 },
-        "40": { "healthy_min": 29, "healthy_max": 45, "vulnerability_margin": 5 }
+        "20": { "healthy_min": 37, "healthy_max": 55, "vulnerability_margin": 0.1 },
+        "30": { "healthy_min": 33, "healthy_max": 50, "vulnerability_margin": 0.1 },
+        "40": { "healthy_min": 29, "healthy_max": 45, "vulnerability_margin": 0.1 }
       }
     }
   }

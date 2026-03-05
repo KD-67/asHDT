@@ -7,9 +7,9 @@
     let modules = $state([]);
     let markers = $state([]);
 
-    let selected_subject = $state("subject_001");
-    let selected_module = $state("fitness");
-    let selected_marker = $state("vo2max");
+    let selected_subject = $state("nothing");
+    let selected_module = $state("nothing");
+    let selected_marker = $state("nothing");
     let selected_start_time = $state("2026-01-01T00:00");
     let selected_end_time = $state("2026-03-31T00:00");
     let selected_polynomial_degree = $state(2);
