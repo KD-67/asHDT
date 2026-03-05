@@ -272,60 +272,44 @@
       <div id="main_container">
 
           <div id="mode_toggle">
-              <button type="button" class:active={mode === "view"} onclick={() => { mode = "view";
-  statusMessage = ""; }}>View / Edit</button>
-              <button type="button" class:active={mode === "add"}  onclick={() => { mode = "add";
-  statusMessage = ""; }}>Add New Module</button>
+              <button type="button" class:active={mode === "view"} onclick={() => { mode = "view"; statusMessage = ""; }}>View / Edit</button>
+              <button type="button" class:active={mode === "add"}  onclick={() => { mode = "add"; statusMessage = ""; }}>Add New Module</button>
           </div>
 
           {#if statusMessage}
               <p id="status_msg" class:error={!statusOk}>{statusMessage}</p>
           {/if}
-
+            <div id="module_card_holder">
           <!-- VIEW / EDIT MODE -->
           {#if mode === "view"}
               {#if modules.length === 0}
                   <p>No modules found.</p>
               {/if}
               {#each modules as mod}
-                  <div class="module_card">
-                      <div class="module_header">
-                          <button type="button" class="expand_btn" onclick={() => expandedModule =
-  expandedModule === mod.module_id ? "" : mod.module_id}>
-                              {expandedModule === mod.module_id ? "▼" : "▶"}
-  <strong>{mod.module_id}</strong>
-                          </button>
-                          <span class="module_desc">{mod.description}</span>
-                          <div class="module_actions">
-                              <button type="button" onclick={() => startEditModule(mod)}>Edit</button>      
-                              <button type="button" class="delete_btn" onclick={() =>
-  handleDeleteModule(mod.module_id)}>Delete</button>
-                          </div>
-                      </div>
+                <div class="module_card">
+                    <h3 class="card_header"> {mod.module_id} </h3>
 
-                      {#if editingModule === mod.module_id}
-                          <div class="inline_form">
-                              <label>Description <input type="text" bind:value={editModuleDescription}></label>
-                              <button type="button" onclick={() =>
-  handleEditModule(mod.module_id)}>Save</button>
-                              <button type="button" onclick={() => editingModule = ""}>Cancel</button>
-                          </div>
-                      {/if}
+                    <div class="card_actions">
+                        <button type="button" class="edit_btn" onclick={()=> startEditModule(mod)}>Edit</button>
+                        <button type="button" class="delete_btn" onclick={()=> handleDeleteModule(mod.module_id)}>Delete</button>
+                    </div>
 
-                      {#if expandedModule === mod.module_id}
-                          <div class="markers_section">
+                    <span class="card_description"> {mod.description} </span>
+
+                    <button type="button" class="card_expand_markers_btn" onclick={()=> expandedModule = expandedModule === mod.module_id ? "" : mod.module_id}>
+                          {expandedModule === mod.module_id ? "▼" : "▶"} Markers</button>
+
+                    {#if expandedModule === mod.module_id}
+                            <div class="markers_section">
                               {#if mod.markers.length === 0}
                                   <p class="no_markers">No markers.</p>
                               {/if}
                               {#each mod.markers as mk}
                                   <div class="marker_row">
                                       <span class="marker_id">{mk.marker_id}</span>
-                                      <span class="marker_meta">{mk.description} — {mk.unit}
-  ({mk.volatility_class})</span>
-                                      <button type="button" onclick={() => startEditMarker(mod.module_id,
-  mk)}>Edit</button>
-                                      <button type="button" class="delete_btn" onclick={() =>
-  handleDeleteMarker(mod.module_id, mk.marker_id)}>Delete</button>
+                                      <span class="marker_meta">{mk.description} — {mk.unit} ({mk.volatility_class})</span>
+                                      <button type="button" class="edit_btn" onclick={() => startEditMarker(mod.module_id, mk)}>Edit</button>
+                                      <button type="button" class="delete_btn" onclick={() => handleDeleteMarker(mod.module_id, mk.marker_id)}>Delete</button>
                                       <button type="button" class="zone_refs_btn" onclick={() => toggleZoneRef(mod.module_id, mk.marker_id)}>Zone Refs</button>
                                   </div>
 
@@ -394,8 +378,7 @@
                                       </div>
                                   {/if}
 
-                                  {#if editingMarker?.module_id === mod.module_id &&
-  editingMarker?.marker_id === mk.marker_id}
+                                  {#if editingMarker?.module_id === mod.module_id && editingMarker?.marker_id === mk.marker_id}
                                       <div class="inline_form marker_edit_form">
                                           <label>Description <input type="text" bind:value={editMarker.description}></label>
                                           <label>Unit <input type="text" bind:value={editMarker.unit}></label>
@@ -416,7 +399,7 @@
                               {/each}
 
                               <!-- Add marker form -->
-                              {#if addingMarkerTo === mod.module_id}
+                                {#if addingMarkerTo === mod.module_id}
                                   <div class="inline_form marker_edit_form">
                                       <strong>New marker</strong>
                                       <label>Marker ID <input type="text" bind:value={newMarker.marker_id}></label>
@@ -433,20 +416,26 @@
                                       <label>Healthy min <input type="number" bind:value={newMarker.healthy_min}></label>
                                       <label>Healthy max <input type="number" bind:value={newMarker.healthy_max}></label>
                                       <label>Vulnerability margin <input type="number" bind:value={newMarker.vulnerability_margin}></label>
-                                      <button type="button" onclick={() =>
-  handleAddMarker(mod.module_id)}>Add marker</button>
-                                      <button type="button" onclick={() => addingMarkerTo =
-  ""}>Cancel</button>
+                                      <button type="button" onclick={() => handleAddMarker(mod.module_id)}>Add marker</button>
+                                      <button type="button" onclick={() => addingMarkerTo = ""}>Cancel</button>
                                   </div>
                               {:else}
-                                  <button type="button" class="add_marker_btn" onclick={() =>
-  startAddMarker(mod.module_id)}>+ Add marker</button>
+                                  <button type="button" class="add_marker_btn" onclick={() => startAddMarker(mod.module_id)}>+ Add marker</button>
                               {/if}
+                          </div>
+                      {/if}
+
+                      {#if editingModule === mod.module_id}
+                          <div class="inline_form">
+                              <label>Description <input type="text" bind:value={editModuleDescription}></label>
+                              <button type="button" onclick={() => handleEditModule(mod.module_id)}>Save</button>
+                              <button type="button" onclick={() => editingModule = ""}>Cancel</button>
                           </div>
                       {/if}
                   </div>
               {/each}
           {/if}
+          </div>
 
           <!-- ADD NEW MODULE MODE -->
           {#if mode === "add"}
@@ -469,113 +458,135 @@
   </main>
 
   <style>
-      #main_container {
-          border: 1px solid black;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 5px;
-          padding: 5px;
-      }
+    #main_container {
+        border: 1px solid black;
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 5px;
+        padding: 5px;
+    }
 
-      #mode_toggle {
-          width: 100%;
-          display: flex;
-          gap: 5px;
-      }
+    #mode_toggle {
+        width: 100%;
+        display: flex;
+        gap: 5px;
+    }
 
-      #mode_toggle button.active {
-          font-weight: bold;
-          text-decoration: underline;
-      }
+    #mode_toggle button.active {
+        font-weight: bold;
+        text-decoration: underline;
+    }
 
-      #status_msg {
-          width: 100%;
-          font-weight: bold;
-      }
+    #status_msg {
+        width: 100%;
+        font-weight: bold;
+    }
 
-      #status_msg.error { color: red; }
+    #status_msg.error { color: red; }
 
-      .module_card {
-          width: 100%;
-          border: 1px solid black;
-          padding: 5px;
-      }
+    #module_card_holder {
+        width: 40vw;
+        display: flex;
+        flex-direction: column;
+    }
 
-      .module_header {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-      }
+    .module_card {
+        display: grid;
+        border: 1px solid black;
+        border-radius: 0.5rem;
+        background-color: #d0e8ff;
+        margin: 5px;
+        padding: 5px;
+        
 
-      .expand_btn {
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-size: 1em;
-      }
+    }
 
-      .module_desc { flex: 1; color: #444; }
+    .card_header {
+        display: grid;
+        align-items: center;
+        gap: 10px;
+    }
 
-      .module_actions { display: flex; gap: 5px; }
+    .card_expand_markers_btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 1em;
+    }
 
-      .delete_btn { background-color: rgb(255, 180, 180); }
+    .card_actions { 
+        display: flex; 
+        justify-content: space-around;
+        gap: 5px; 
+    }
 
-      .markers_section {
-          margin-top: 5px;
-          padding-left: 20px;
-          border-left: 2px solid #ccc;
-      }
+    .delete_btn { background-color: rgb(255, 180, 180); }
 
-      .marker_row {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 3px 0;
-      }
+    .edit_btn {
+    background-color: aqua;
+    }
 
-      .marker_id { font-weight: bold; min-width: 120px; }
-      .marker_meta { flex: 1; color: #555; font-size: 0.9em; }
+    .card_description { 
+        flex: 1; color: #444; 
+    }
 
-      .no_markers { color: #888; font-style: italic; }
+    .markers_section {
+        margin-top: 5px;
+        padding-left: 20px;
+        border-left: 2px solid #ccc;
+    }
 
-      .inline_form {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 5px;
-          background-color: lightyellow;
-          padding: 8px;
-          margin: 5px 0;
-          border: 1px solid #ccc;
-      }
+    .marker_row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 3px 0;
+    }
 
-      .marker_edit_form label { font-size: 0.85em; }
-      .marker_edit_form input, .marker_edit_form select { width: 120px; }
+    .marker_id { font-weight: bold; min-width: 120px; }
+    .marker_meta { flex: 1; color: #555; font-size: 0.9em; }
 
-      .add_marker_btn { margin-top: 5px; }
+    .no_markers { color: #888; font-style: italic; }
 
-      .zone_refs_btn { background-color: #d0e8ff; }
+    .inline_form {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 5px;
+        background-color: lightyellow;
+        padding: 8px;
+        margin: 5px 0;
+        border: 1px solid #ccc;
+    }
 
-      .zone_refs_panel { flex-direction: column; align-items: flex-start; }
+    .marker_edit_form label { font-size: 0.85em; }
+    .marker_edit_form input, .marker_edit_form select { width: 120px; }
 
-      .zone_refs_table { border-collapse: collapse; font-size: 0.85em; width: 100%; }
-      .zone_refs_table th, .zone_refs_table td { border: 1px solid #ccc; padding: 3px 6px; text-align: center; }
-      .zone_refs_table th { background: #eee; }
+    .add_marker_btn { margin-top: 5px; }
 
-      .demo_zone_add_form { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 0.85em; }
+    .zone_refs_btn { background-color: #d0e8ff; }
 
-      form {
-          background-color: lightblue;
-          padding: 15px 10px;
-          border: 1px solid black;
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-      }
+    .zone_refs_panel { flex-direction: column; align-items: flex-start; }
 
-      #preview_container {
-          border: 1px solid black;
-          margin: 5px;
-          padding: 3px;
-      }
+    .zone_refs_table { border-collapse: collapse; font-size: 0.85em; width: 100%; }
+    .zone_refs_table th, .zone_refs_table td { border: 1px solid #ccc; padding: 3px 6px; text-align: center; }
+    .zone_refs_table th { background: #eee; }
+
+    .demo_zone_add_form { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 0.85em; }
+
+    form {
+        background-color: lightblue;
+        padding: 15px 10px;
+        border: 1px solid black;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    #preview_container {
+        border: 1px solid black;
+        margin: 5px;
+        padding: 3px;
+    }
   </style>
