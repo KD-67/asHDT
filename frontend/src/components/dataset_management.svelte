@@ -101,8 +101,10 @@ fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id
     async function handleEditSave() {
         if (!editTs) { setStatus("Timestamp is required.", false); return; }
         if (editValue === "") { setStatus("Value is required.", false); return; }
+        const mid = selectedDataset.module_id;
+        const mkid = selectedDataset.marker_id;
         const res = await fetch(
-            `${BASE_URL}/subjects/${selectedSubject}/datasets/${selectedDataset.module_id}/${selectedDataset.marker_id}/${encodeURIComponent(editingDp.measured_at)}`,
+            `${BASE_URL}/subjects/${selectedSubject}/datasets/${mid}/${mkid}/${encodeURIComponent(editingDp.measured_at)}`,
             {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -118,7 +120,7 @@ fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id
             setStatus("Datapoint updated.");
             editingDp = null;
             await loadDatasets(selectedSubject);
-            await loadDatapoints(selectedDataset.module_id, selectedDataset.marker_id);
+            await loadDatapoints(mid, mkid);
         } else {
             const err = await res.json();
             setStatus(`Error: ${err.detail ?? res.statusText}`, false);
@@ -128,8 +130,10 @@ fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id
     async function handleAddForm() {
         if (!dpTimestamp) { setStatus("Timestamp is required.", false); return; }
         if (dpValue === "") { setStatus("Value is required.", false); return; }
+        const mid = selectedDataset.module_id;
+        const mkid = selectedDataset.marker_id;
         const res = await fetch(
-            `${BASE_URL}/subjects/${selectedSubject}/datasets/${selectedDataset.module_id}/${selectedDataset.marker_id}`,
+            `${BASE_URL}/subjects/${selectedSubject}/datasets/${mid}/${mkid}`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -145,7 +149,7 @@ fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id
             setStatus("Datapoint added.");
             dpTimestamp = ""; dpValue = ""; dpQuality = "good";
             await loadDatasets(selectedSubject);
-            await loadDatapoints(selectedDataset.module_id, selectedDataset.marker_id);
+            await loadDatapoints(mid, mkid);
         } else {
             const err = await res.json();
             setStatus(`Error: ${err.detail ?? res.statusText}`, false);
@@ -154,17 +158,19 @@ fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id
 
     async function handleUpload() {
         if (!uploadFile) { setStatus("Select a file first.", false); return; }
+        const mid = selectedDataset.module_id;
+        const mkid = selectedDataset.marker_id;
         const form = new FormData();
         form.append("file", uploadFile);
         const res = await fetch(
-            `${BASE_URL}/subjects/${selectedSubject}/datasets/${selectedDataset.module_id}/${selectedDataset.marker_id}/upload`,
+            `${BASE_URL}/subjects/${selectedSubject}/datasets/${mid}/${mkid}/upload`,
             { method: "POST", body: form }
         );
         if (res.ok) {
             setStatus("File uploaded.");
             uploadFile = null;
             await loadDatasets(selectedSubject);
-            await loadDatapoints(selectedDataset.module_id, selectedDataset.marker_id);
+            await loadDatapoints(mid, mkid);
         } else {
             const err = await res.json();
             setStatus(`Error: ${err.detail ?? res.statusText}`, false);
@@ -173,14 +179,16 @@ fetch(`${BASE_URL}/subjects/${selectedSubject}/datasets/${module_id}/${marker_id
 
     async function handleDeleteDatapoint(measured_at) {
         if (!confirm(`Delete datapoint at ${measured_at}?`)) return;
+        const mid = selectedDataset.module_id;
+        const mkid = selectedDataset.marker_id;
         const res = await fetch(
-            `${BASE_URL}/subjects/${selectedSubject}/datasets/${selectedDataset.module_id}/${selectedDataset.marker_id}/${encodeURIComponent(measured_at)}`,
+            `${BASE_URL}/subjects/${selectedSubject}/datasets/${mid}/${mkid}/${encodeURIComponent(measured_at)}`,
             { method: "DELETE" }
         );
         if (res.ok) {
             setStatus("Datapoint deleted.");
             await loadDatasets(selectedSubject);
-            await loadDatapoints(selectedDataset.module_id, selectedDataset.marker_id);
+            await loadDatapoints(mid, mkid);
         } else {
             const err = await res.json();
             setStatus(`Error: ${err.detail ?? res.statusText}`, false);

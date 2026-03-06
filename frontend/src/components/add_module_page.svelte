@@ -132,6 +132,13 @@
       }
 
       async function handleAddMarker(module_id) {
+          const hMin = parseFloat(newMarker.healthy_min);
+          const hMax = parseFloat(newMarker.healthy_max);
+          const vMargin = parseFloat(newMarker.vulnerability_margin);
+          if (isNaN(hMin) || isNaN(hMax) || isNaN(vMargin)) {
+              setStatus("Healthy min, max, and vulnerability margin must be numbers.", false);
+              return;
+          }
           const res = await fetch(`${BASE_URL}/modules/${module_id}/markers`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -140,9 +147,9 @@
                   description: newMarker.description.trim(),
                   unit: newMarker.unit.trim(),
                   volatility_class: newMarker.volatility_class.trim(),
-                  healthy_min: parseFloat(newMarker.healthy_min),
-                  healthy_max: parseFloat(newMarker.healthy_max),
-                  vulnerability_margin: parseFloat(newMarker.vulnerability_margin),
+                  healthy_min: hMin,
+                  healthy_max: hMax,
+                  vulnerability_margin: vMargin,
               }),
           });
           if (res.ok) {
@@ -339,17 +346,15 @@
 
                     <span class="card_description"> {mod.description} </span>
 
-                    <div class="card_expand_markers_container">
-                        <span class="expand_markers_btn">
-                          {expandedModule === mod.module_id ? "▼" : "▶"} Markers
-                        </span>
-                    </div>
-                    
                     {#if expandedModule === mod.module_id}
-                            <div class="markers_section">
+                        <div class="markers_section">
+
+                              <h3 class="markers_section_header" >Markers</h3>
+
                               {#if mod.markers.length === 0}
                                   <p class="no_markers">No markers.</p>
                               {/if}
+                              
                               {#each mod.markers as mk}
                                   <div class="marker_row">
                                       <span class="marker_id">{mk.marker_id}</span>
@@ -466,7 +471,7 @@
                                       <button type="button" onclick={() => addingMarkerTo = ""}>Cancel</button>
                                   </div>
                               {:else}
-                                  <button type="button" class="add_marker_btn" onclick={(e) => { e.stopPropagation(); startAddMarker(mod.module_id); }}>+ Add marker</button>
+                                  <button type="button" class="add_marker_btn" onclick={(e) => { e.stopPropagation(); startAddMarker(mod.module_id); }}>{@html AddIcon}</button>
                               {/if}
                           </div>
                       {/if}
@@ -561,6 +566,7 @@
     .add_marker_btn { 
         background-color: rgb(114, 231, 114);
         margin-top: 5px;
+        justify-self: end;
     }
 
     #zone_refs_btn { 
@@ -568,7 +574,8 @@
     }
 
     #add_new_mod_btn {
-        background-color: rgb(5, 219, 5);
+        background-color: rgb(114, 231, 114);
+        justify-self: end;
     }
 
     /* MAIN DIV */
@@ -604,7 +611,7 @@
 
     /* VIEW MODE */
     #viewbox {
-        width: 40vw;
+        width: 50vw;
         display: flex;
         flex-direction: column;
     }
@@ -617,7 +624,7 @@
         box-shadow: 5px 5px 0px #422800;
         margin: 5px;
         padding: 8px;
-        grid-template-rows: auto auto auto;
+        grid-template-rows: auto auto auto auto;
         grid-template-columns: 50% 50%;
     }
 
@@ -642,18 +649,6 @@
         padding: 0.25rem 0;
         font-size: 18px;
     }
-    
-    .card_expand_markers_container {
-        padding: 0.25rem 0;
-        grid-area: 3 / 1 / 4 / 3;
-    }
-
-    .expand_markers_btn {
-        background: none;
-        border: none;
-        cursor: pointer;
-        font-size: 1em;
-    }
 
     #card_actions { 
         grid-area: 1 / 2 / 2 / 3; 
@@ -662,17 +657,32 @@
         gap: 5px; 
     }
 
+    /* .markers_header_container {
+        grid-area: 3 / 1 / 4 / 2;
+    } */
+
     .markers_section {
-        margin-top: 5px;
-        padding-left: 20px;
-        border-left: 2px solid #ccc;
+        grid-area: 4 / 1 / 5 / 3;
+        display: grid;
+        border-top: 2px solid #422800;
+        margin-top: 10px;
+        padding-top: 0;
+    }
+
+    .markers_section_header {
+        padding-left: 10px;
     }
 
     .marker_row {
         display: flex;
         align-items: center;
+        border: 2px solid #422800;
+        border-radius: 0.5rem;
+        box-shadow: 5px 5px 0px #422800;
         gap: 8px;
-        padding: 3px 0;
+        padding: 3px 3px;
+        background-color: aliceblue;
+        margin: 5px 5px;
     }
 
     .marker_id { 
