@@ -25,23 +25,13 @@
     asHDT: Health Data Tracker 
     </a>
 
-  <nav id="nav_bar">
-    <div class="nav_link_container">
+  <div class="nav_bar">
       <a class="nav_link" href="http://localhost:5173/#home">Home</a>
-    </div>
-
-    <div class="nav_link_container">
       <a class="nav_link" href="http://localhost:5173/#data_management_portal">Data Management Portal</a>
-    </div>
-    
-    <div class="nav_link_container">
       <a class="nav_link" href="http://localhost:5173/#request_report_form">Request Report</a>
-    </div>
-
-    <div class="nav_link_container">
       <a class="nav_link" href="http://localhost:5173/#help">Help</a>
-    </div>
-  </nav>
+  </div>
+
 </header>
   
 
@@ -66,7 +56,7 @@
 
 <style>
   header {
-    border: 1px solid black;
+    /* border: 1px solid black; */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -78,29 +68,37 @@
     font-size: 50px;
   }
 
-  #nav_bar {
-    border: 2px solid black;
+  .nav_bar {
     display: flex;
     justify-content: space-between;
     padding: 3px 1px;
   }
 
-  .nav_link_container {
-    border: 1px solid black;
-    margin: 1px 5px;
-    padding: 25px 5px;
-  }
-
-  .nav_link_container:hover {
-  background-color: rgb(255, 189, 189);
-  }
-
-  .nav_link_container:hover > a {
-    font-weight: bold;
-  }
-
   .nav_link {
+    background-color: #fbeee0;
+    border: 2px solid #422800;
+    border-radius: 30px;
+    box-shadow: #422800 4px 4px 0 0;
+    color: #422800;
+    cursor: pointer;
+    display: inline-block;
+    font-weight: 600;
+    font-size: 18px;
+    padding: 0 18px;
+    margin: 0 4px;
+    line-height: 50px;
+    text-align: center;
     text-decoration: none;
-    color: black;
   }
+
+  .nav_link:hover {
+  background-color: rgb(255, 189, 189);
+  transform: scale(103%);
+  }
+
+  .nav_link:active {
+  box-shadow: #422800 2px 2px 0 0;
+  transform: translate(2px, 2px);
+}
+
 </style>

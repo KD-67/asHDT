@@ -53,9 +53,6 @@ import DatasetManagement from "./dataset_management.svelte";
   line-height: 50px;
   text-align: center;
   text-decoration: none;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
 }
 
 .subpage_button:hover {
