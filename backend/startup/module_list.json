@@ -1,19 +1,6 @@
 {
   "modules": [
     {
-      "module_id": "vtf_stresstest",
-      "description": "ESA Vertical Treadmill Facility microgravity stress test",
-      "format": "json",
-      "markers": [
-        {
-          "marker_id": "microgravity_resilience_score",
-          "description": "Maximal oxygen uptake",
-          "unit": "percentage",
-          "volatility_class": "long_term"
-        }
-      ]
-    },
-    {
       "module_id": "fitness",
       "description": "Various measurable cardiovascular fitness and strength metrics",
       "format": "json",

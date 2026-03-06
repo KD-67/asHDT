@@ -286,18 +286,24 @@
                   <p>No modules found.</p>
               {/if}
               {#each modules as mod}
-                <div class="module_card">
-                    <h3 class="card_header"> {mod.module_id} </h3>
+                <div class="module_card" role="button" tabindex="0" onclick={() => expandedModule = expandedModule === mod.module_id ? "" : mod.module_id} onkeydown={(e) => e.key === 'Enter' && (expandedModule = expandedModule === mod.module_id ? "" : mod.module_id)}>
+                    <div id="card_header_container">
+                        <h3 class="card_header"> {mod.module_id} </h3>
+                    </div>
 
-                    <div class="card_actions">
-                        <button type="button" class="edit_btn" onclick={()=> startEditModule(mod)}>Edit</button>
-                        <button type="button" class="delete_btn" onclick={()=> handleDeleteModule(mod.module_id)}>Delete</button>
+                    <div id="card_actions">
+                        <button type="button" class="CRUD_btn" id="edit_btn" onclick={()=> startEditModule(mod)}>Edit</button>
+                        <button type="button" class="CRUD_btn" id="delete_btn" onclick={()=> handleDeleteModule(mod.module_id)}>Delete</button>
                     </div>
 
                     <span class="card_description"> {mod.description} </span>
 
-                    <button type="button" class="card_expand_markers_btn" onclick={()=> expandedModule = expandedModule === mod.module_id ? "" : mod.module_id}>
-                          {expandedModule === mod.module_id ? "▼" : "▶"} Markers</button>
+                    <div class="card_expand_markers_container">
+                        <span>
+                          {expandedModule === mod.module_id ? "▼" : "▶"} Markers
+                        </span>
+                    </div>
+                    
 
                     {#if expandedModule === mod.module_id}
                             <div class="markers_section">
@@ -308,9 +314,9 @@
                                   <div class="marker_row">
                                       <span class="marker_id">{mk.marker_id}</span>
                                       <span class="marker_meta">{mk.description} — {mk.unit} ({mk.volatility_class})</span>
-                                      <button type="button" class="edit_btn" onclick={() => startEditMarker(mod.module_id, mk)}>Edit</button>
-                                      <button type="button" class="delete_btn" onclick={() => handleDeleteMarker(mod.module_id, mk.marker_id)}>Delete</button>
-                                      <button type="button" class="zone_refs_btn" onclick={() => toggleZoneRef(mod.module_id, mk.marker_id)}>Zone Refs</button>
+                                      <button type="button" class="CRUD_btn" id="edit_btn" onclick={() => startEditMarker(mod.module_id, mk)}>Edit</button>
+                                      <button type="button" class="CRUD_btn" id="delete_btn" onclick={() => handleDeleteMarker(mod.module_id, mk.marker_id)}>Delete</button>
+                                      <button type="button" class="CRUD_btn" id="zone_refs_btn" onclick={() => toggleZoneRef(mod.module_id, mk.marker_id)}>Zones</button>
                                   </div>
 
                                   {#if expandedZoneRef?.module_id === mod.module_id && expandedZoneRef?.marker_id === mk.marker_id}
@@ -493,42 +499,68 @@
 
     .module_card {
         display: grid;
-        border: 1px solid black;
+        border: 1px solid white;
         border-radius: 0.5rem;
         background-color: #d0e8ff;
+        box-shadow: 12px 17px 51px rgba(0, 0, 0, 0.22);
         margin: 5px;
         padding: 5px;
-        
-
+        grid-template-rows: auto auto auto;
+        grid-template-columns: 50% 50%;
     }
 
+    .module_card:hover {
+        transform: scale(1.01);
+        border: 1px solid black;
+    }
+
+    #card_header_container {
+        grid-row: 1 / 2;
+        grid-column: 1 / 2;
+    }
+    
     .card_header {
-        display: grid;
-        align-items: center;
-        gap: 10px;
+        color: rgb(0, 0, 0);
     }
 
-    .card_expand_markers_btn {
+    .card_expand_markers_container {
+        grid-area: 3 / 1 / 4 / 3;
+    }
+
+    .expand_markers_btn {
         background: none;
         border: none;
         cursor: pointer;
         font-size: 1em;
     }
 
-    .card_actions { 
+    #card_actions { 
+        grid-area: 1 / 2 / 2 / 3; 
         display: flex; 
-        justify-content: space-around;
+        justify-content: flex-end;
         gap: 5px; 
     }
 
-    .delete_btn { background-color: rgb(255, 180, 180); }
-
-    .edit_btn {
-    background-color: aqua;
+    .CRUD_btn {
+        border-radius: 20%;
+        width: 15%;
+        height: 50%;
+        margin: 0.25rem;
+        font-size: auto;
+    }
+    
+    #delete_btn { 
+        background-color: rgb(255, 180, 180); 
     }
 
-    .card_description { 
-        flex: 1; color: #444; 
+    #edit_btn {
+        background-color: aqua;
+    }
+
+    .card_description {
+        grid-row: 2 / 3;
+        grid-column: 1 / 3;
+        color: #444; 
     }
 
     .markers_section {
@@ -565,7 +597,9 @@
 
     .add_marker_btn { margin-top: 5px; }
 
-    .zone_refs_btn { background-color: #d0e8ff; }
+    #zone_refs_btn { 
+        background-color: rgb(252, 217, 18); 
+    }
 
     .zone_refs_panel { flex-direction: column; align-items: flex-start; }
 
