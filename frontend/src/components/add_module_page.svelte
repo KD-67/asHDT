@@ -83,16 +83,14 @@
           }
       }
 
-  function toggleEditModule(mod) {                                                                
-    console.log("Before:", editingModule, mod.module_id);                                    
-    if (editingModule === mod.module_id) {                                                      
-          editingModule = "";                                                                     
-          editModuleDescription = "";  
-    } else {                                                                                    
-          editingModule = mod.module_id;                                                          
+  function toggleEditModule(mod) {
+    if (editingModule === mod.module_id) {
+          editingModule = "";
+          editModuleDescription = "";
+    } else {
+          editingModule = mod.module_id;
           editModuleDescription = mod.description;
       }
-      console.log("After:", editingModule);
       statusMessage = "";
   }
 
@@ -117,7 +115,7 @@
           const res = await fetch(`${BASE_URL}/modules/${module_id}`, { method: "DELETE" });
           if (res.ok) {
               setStatus(`Module "${module_id}" deleted.`);
-              if (expandedModule === module_id) expandedModule = "";
+              if (expandedModule === module_id) collapseModule();
               await loadModules();
           } else {
               const err = await res.json();
@@ -325,7 +323,7 @@
                   <p>No modules found.</p>
               {/if}
               {#each modules as mod}
-                <div class="module_card" role="button" tabindex="0" onclick={() => expandedModule = expandedModule === mod.module_id ? "" : mod.module_id} onkeydown={(e) => e.key === 'Enter' && (expandedModule = expandedModule === mod.module_id ? "" : mod.module_id)}>
+                <div class="module_card" role="button" tabindex="0" onclick={() => expandedModule === mod.module_id ? collapseModule() : (collapseModule(), expandedModule = mod.module_id)} onkeydown={(e) => e.key === 'Enter' && (expandedModule === mod.module_id ? collapseModule() : (collapseModule(), expandedModule = mod.module_id))}>
                     <div id="card_header_container">
                         <h2 class="card_header"> {mod.module_id} </h2>
                     </div>
@@ -334,7 +332,7 @@
                         <button type="button" id="edit_btn" onclick={(e) => { e.stopPropagation(); toggleEditModule(mod); }}>
                             {@html EditIcon}
                         </button>
-                        <button type="button" id="delete_btn" onclick={()=> handleDeleteModule(mod.module_id)}>
+                        <button type="button" id="delete_btn" onclick={(e) => { e.stopPropagation(); handleDeleteModule(mod.module_id); }}>
                             {@html DeleteIcon}
                         </button>
                     </div>
@@ -362,7 +360,7 @@
                                   </div>
 
                                   {#if expandedZoneRef?.module_id === mod.module_id && expandedZoneRef?.marker_id === mk.marker_id}
-                                      <div class="inline_form zone_refs_panel">
+                                      <div class="inline_form zone_refs_panel" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); }} onkeydown={(e) => e.key === 'Enter' && e.stopPropagation()}>
                                           <strong style="width:100%">Demographic zone references — {mk.marker_id}</strong>
                                           {#if zoneRefRows.length > 0}
                                               <table class="zone_refs_table">
@@ -406,7 +404,7 @@
                                           {/if}
 
                                           {#if addingDemoZone}
-                                              <div class="demo_zone_add_form">
+                                              <div class="demo_zone_add_form" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); }} onkeydown={(e) => e.key === 'Enter' && e.stopPropagation()}>
                                                   <label>Sex
                                                       <select bind:value={newDemoZone.sex}>
                                                           <option value="M">M</option>
@@ -427,7 +425,7 @@
                                   {/if}
 
                                   {#if editingMarker && editingMarker.module_id === mod.module_id && editingMarker.marker_id === mk.marker_id}
-                                      <div class="inline_form marker_edit_form">
+                                      <div class="inline_form marker_edit_form" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); }} onkeydown={(e) => e.key === 'Enter' && e.stopPropagation()}>
                                           <label>Description <input type="text" bind:value={editMarker.description}></label>
                                           <label>Unit <input type="text" bind:value={editMarker.unit}></label>
                                           <label>Volatility class
@@ -448,7 +446,7 @@
 
                               <!-- Add marker form -->
                                 {#if addingMarkerTo === mod.module_id}
-                                  <div class="inline_form marker_edit_form">
+                                  <div class="inline_form marker_edit_form" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); }} onkeydown={(e) => e.key === 'Enter' && e.stopPropagation()}>
                                       <strong>New marker</strong>
                                       <label>Marker ID <input type="text" bind:value={newMarker.marker_id}></label>
                                       <label>Description <input type="text" bind:value={newMarker.description}></label>
@@ -468,13 +466,13 @@
                                       <button type="button" onclick={() => addingMarkerTo = ""}>Cancel</button>
                                   </div>
                               {:else}
-                                  <button type="button" class="add_marker_btn" onclick={() => startAddMarker(mod.module_id)}>+ Add marker</button>
+                                  <button type="button" class="add_marker_btn" onclick={(e) => { e.stopPropagation(); startAddMarker(mod.module_id); }}>+ Add marker</button>
                               {/if}
                           </div>
                       {/if}
 
                       {#if editingModule && editingModule === mod.module_id}
-                          <div class="inline_form">
+                          <div class="inline_form" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); }} onkeydown={(e) => e.key === 'Enter' && e.stopPropagation()}>
                               <label>Description <input type="text" bind:value={editModuleDescription}></label>
                               <button type="button" onclick={() => handleEditModule(mod.module_id)}>Save</button>
                               <button type="button" onclick={() => editingModule = ""}>Cancel</button>
@@ -517,7 +515,7 @@
     /* BUTTONS */
 
     button {
-        border-radius: 20%;
+        border-radius: 30px;
         margin: 0.75rem 0.25rem;
         padding: 0.25rem 0.75rem;
         box-shadow: 5px 5px 0px #422800;
@@ -528,8 +526,8 @@
       
     button :global(svg) {
         overflow: visible;                                                                     
-        width: 18px;                                                                                
-        height: 18px;
+        width: 20px;                                                                                
+        height: 20px;
         color: #422800;
     }
 
@@ -545,11 +543,11 @@
     }
 
     #viewedit_mod_btn {
-        background-color: rgb(197, 147, 243);
+        background-color: rgb(209, 162, 252);
     }
 
     #add_mod_btn {
-        background-color: rgb(5, 219, 5);
+        background-color: rgb(114, 231, 114);
     }
 
     #delete_btn { 
@@ -561,7 +559,8 @@
     }
 
     .add_marker_btn { 
-        margin-top: 5px; 
+        background-color: rgb(114, 231, 114);
+        margin-top: 5px;
     }
 
     #zone_refs_btn { 
@@ -617,7 +616,7 @@
         background-color: #d0e8ff;
         box-shadow: 5px 5px 0px #422800;
         margin: 5px;
-        padding: 5px;
+        padding: 8px;
         grid-template-rows: auto auto auto;
         grid-template-columns: 50% 50%;
     }
@@ -692,15 +691,18 @@
         font-style: italic; 
     }
 
+    /* EDIT MARKERS INLINE FORM */
     .inline_form {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 5px;
+        border: 2px solid #422800;
+        border-radius: 0.5rem;
         background-color: lightyellow;
         padding: 8px;
         margin: 5px 0;
-        border: 1px solid #ccc;
+        box-shadow: 5px 5px 0px #422800;
     }
 
     .marker_edit_form label { 
@@ -711,8 +713,7 @@
         width: 120px; 
     }
 
-
-
+    /* ZONE REFERENCES INLINE FORM */
     .zone_refs_panel { 
         flex-direction: column; 
         align-items: flex-start; 
