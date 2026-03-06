@@ -132,7 +132,7 @@
                 <select bind:value={selected_module} disabled={!selected_subject} onchange={onModuleChange}>
                     <option value="">-- select module --</option>
                     {#each modules as module}
-                        <option value={module.module_id}>{module.module_id}</option>
+                        <option value={module.module_id}>{module.module_name || module.module_id}</option>
                     {/each}
                 </select>
                 <p>(Selected: {selected_module})</p>
@@ -143,7 +143,7 @@
                 <select bind:value={selected_marker} disabled={!selected_module} onchange={loadZoneReference}>
                     <option value="">-- select marker --</option>
                     {#each markers as marker}
-                        <option value={marker.marker_id}>{marker.marker_id}</option>
+                        <option value={marker.marker_id}>{marker.marker_name || marker.marker_id}</option>
                     {/each}
                 </select>
                 <p>(Selected: {selected_marker})</p>

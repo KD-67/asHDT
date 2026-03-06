@@ -235,7 +235,7 @@ loadDatasets(selectedSubject)}>
                 <select id="nd_module" bind:value={newDsModule}>
                     <option value="">-- module --</option>
                     {#each modules as m}
-                        <option value={m.module_id}>{m.module_id}</option>
+                        <option value={m.module_id}>{m.module_name || m.module_id}</option>
                     {/each}
                 </select>
 
@@ -243,7 +243,7 @@ loadDatasets(selectedSubject)}>
                 <select id="nd_marker" bind:value={newDsMarker} disabled={!newDsModule}>
                     <option value="">-- marker --</option>
                     {#each availableMarkers as mk}
-                        <option value={mk.marker_id}>{mk.marker_id}</option>
+                        <option value={mk.marker_id}>{mk.marker_name || mk.marker_id}</option>
                     {/each}
                 </select>
 

@@ -2,17 +2,20 @@
   "modules": [
     {
       "module_id": "fitness",
+      "module_name": "Fitness",
       "description": "Various measurable cardiovascular fitness and strength metrics",
       "format": "json",
       "markers": [
         {
           "marker_id": "vo2max",
+          "marker_name": "VO2 Max",
           "description": "Maximal oxygen uptake",
           "unit": "ml/kg/min",
           "volatility_class": "short_term"
         },
         {
           "marker_id": "100m_sprint",
+          "marker_name": "100m Sprint",
           "description": "Fastest 100m sprint from session",
           "unit": "seconds",
           "volatility_class": "medium_term"
@@ -21,11 +24,13 @@
     },
     {
       "module_id": "body_composition",
+      "module_name": "Body Composition",
       "description": "Collection of dynamic measurements of the subject's body composition",
       "format": "json",
       "markers": [
         {
           "marker_id": "body_mass",
+          "marker_name": "Body Mass",
           "description": "Mass of subject in kilograms",
           "unit": "kg",
           "volatility_class": "medium_term"

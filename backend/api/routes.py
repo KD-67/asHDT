@@ -54,14 +54,17 @@ class SubjectProfile(BaseModel):
 
 class ModuleCreate(BaseModel):
     module_id: str
+    module_name: str = ""
     description: str
     format: str = "json"
 
 class ModuleUpdate(BaseModel):
+    module_name: str = ""
     description: str
 
 class MarkerCreate(BaseModel):
     marker_id: str
+    marker_name: str = ""
     description: str
     unit: str
     volatility_class: str
@@ -70,6 +73,7 @@ class MarkerCreate(BaseModel):
     vulnerability_margin: float
 
 class MarkerUpdate(BaseModel):
+    marker_name: str = ""
     description: str
     unit: str
     volatility_class: str
@@ -286,6 +290,7 @@ def post_module(body: ModuleCreate, request: Request):
         raise HTTPException(status_code=409, detail="module_id already exists!")
     modules["modules"].append({
         "module_id": body.module_id,
+        "module_name": body.module_name,
         "description": body.description,
         "format": body.format,
         "markers": [],
@@ -294,8 +299,8 @@ def post_module(body: ModuleCreate, request: Request):
     request.app.state.modules = modules
     with get_connection(request.app.state.db_path) as conn:
         conn.execute(
-            "INSERT INTO modules (module_id, description, format) VALUES (?, ?, ?)",
-            (body.module_id, body.description, body.format),
+            "INSERT INTO modules (module_id, module_name, description, format) VALUES (?, ?, ?, ?)",
+            (body.module_id, body.module_name, body.description, body.format),
         )
         conn.commit()
     return {"module_id": body.module_id}
@@ -308,13 +313,14 @@ def put_module(module_id: str, body: ModuleUpdate, request: Request):
     mod = next((m for m in modules["modules"] if m["module_id"] == module_id), None)
     if mod is None:
         raise HTTPException(status_code=404, detail="Module not found")
+    mod["module_name"] = body.module_name
     mod["description"] = body.description
     _write_modules(path, modules)
     request.app.state.modules = modules
     with get_connection(request.app.state.db_path) as conn:
         conn.execute(
-            "UPDATE modules SET description=? WHERE module_id=?",
-            (body.description, module_id),
+            "UPDATE modules SET module_name=?, description=? WHERE module_id=?",
+            (body.module_name, body.description, module_id),
         )
         conn.commit()
     return {"module_id": module_id}
@@ -359,6 +365,7 @@ def post_marker(module_id: str, body: MarkerCreate, request: Request):
         raise HTTPException(status_code=409, detail="marker_id already exists in this module")
     mod["markers"].append({
         "marker_id": body.marker_id,
+        "marker_name": body.marker_name,
         "description": body.description,
         "unit": body.unit,
         "volatility_class": body.volatility_class,
@@ -386,9 +393,9 @@ def post_marker(module_id: str, body: MarkerCreate, request: Request):
             (module_id, body.marker_id, body.healthy_min, body.healthy_max, body.vulnerability_margin),
         )
         conn.execute(
-            "INSERT INTO markers (module_id, marker_id, description, unit, volatility_class) VALUES (?, ?, ?, ?, ?)"
-            " ON CONFLICT(module_id, marker_id) DO UPDATE SET description=excluded.description, unit=excluded.unit, volatility_class=excluded.volatility_class",
-            (module_id, body.marker_id, body.description, body.unit, body.volatility_class),
+            "INSERT INTO markers (module_id, marker_id, marker_name, description, unit, volatility_class) VALUES (?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT(module_id, marker_id) DO UPDATE SET marker_name=excluded.marker_name, description=excluded.description, unit=excluded.unit, volatility_class=excluded.volatility_class",
+            (module_id, body.marker_id, body.marker_name, body.description, body.unit, body.volatility_class),
         )
         conn.commit()
     return {"module_id": module_id, "marker_id": body.marker_id}
@@ -406,6 +413,7 @@ def put_marker(module_id: str, marker_id: str, body: MarkerUpdate, request: Requ
     mk = next((mk for mk in mod["markers"] if mk["marker_id"] == marker_id), None)
     if mk is None:
         raise HTTPException(status_code=404, detail="Marker not found")
+    mk["marker_name"] = body.marker_name
     mk["description"] = body.description
     mk["unit"] = body.unit
     mk["volatility_class"] = body.volatility_class
@@ -432,8 +440,8 @@ def put_marker(module_id: str, marker_id: str, body: MarkerUpdate, request: Requ
             (module_id, marker_id, body.healthy_min, body.healthy_max, body.vulnerability_margin),
         )
         conn.execute(
-            "UPDATE markers SET description=?, unit=?, volatility_class=? WHERE module_id=? AND marker_id=?",
-            (body.description, body.unit, body.volatility_class, module_id, marker_id),
+            "UPDATE markers SET marker_name=?, description=?, unit=?, volatility_class=? WHERE module_id=? AND marker_id=?",
+            (body.marker_name, body.description, body.unit, body.volatility_class, module_id, marker_id),
         )
         conn.commit()
     return {"module_id": module_id, "marker_id": marker_id}

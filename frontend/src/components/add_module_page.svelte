@@ -24,6 +24,7 @@
 
       // Inline module edit
       let editingModule = $state("");
+      let editModuleName = $state("");
       let editModuleDescription = $state("");
 
       // Inline marker add (per module)
@@ -43,7 +44,7 @@
       let editDemoZone = $state({ healthy_min: "", healthy_max: "", vulnerability_margin: "" });
 
       function emptyMarker() {
-          return { marker_id: "", description: "", unit: "", volatility_class: "", healthy_min: "",
+          return { marker_id: "", marker_name: "", description: "", unit: "", volatility_class: "", healthy_min: "",
   healthy_max: "", vulnerability_margin: "" };
       }
 
@@ -69,7 +70,7 @@
           const res = await fetch(`${BASE_URL}/modules`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ module_id: new_module_id.trim(), description:
+              body: JSON.stringify({ module_id: new_module_id.trim(), module_name: new_module_name.trim(), description:
   new_module_description.trim() }),
           });
           if (res.ok) {
@@ -86,9 +87,11 @@
   function toggleEditModule(mod) {
     if (editingModule === mod.module_id) {
           editingModule = "";
+          editModuleName = "";
           editModuleDescription = "";
     } else {
           editingModule = mod.module_id;
+          editModuleName = mod.module_name ?? "";
           editModuleDescription = mod.description;
       }
       statusMessage = "";
@@ -98,7 +101,7 @@
           const res = await fetch(`${BASE_URL}/modules/${module_id}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ description: editModuleDescription }),
+              body: JSON.stringify({ module_name: editModuleName, description: editModuleDescription }),
           });
           if (res.ok) {
               setStatus(`Module "${module_id}" updated.`);
@@ -144,6 +147,7 @@
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                   marker_id: newMarker.marker_id.trim(),
+                  marker_name: newMarker.marker_name.trim(),
                   description: newMarker.description.trim(),
                   unit: newMarker.unit.trim(),
                   volatility_class: newMarker.volatility_class.trim(),
@@ -178,6 +182,7 @@
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
+                  marker_name: editMarker.marker_name,
                   description: editMarker.description,
                   unit: editMarker.unit,
                   volatility_class: editMarker.volatility_class,
@@ -294,6 +299,7 @@
       function collapseModule() {
             expandedModule = "";
             editingModule = "";
+            editModuleName = "";
             editModuleDescription = "";
             addingMarkerTo = "";
             newMarker = emptyMarker();  
@@ -332,7 +338,7 @@
               {#each modules as mod}
                 <div class="module_card" role="button" tabindex="0" onclick={() => expandedModule === mod.module_id ? collapseModule() : (collapseModule(), expandedModule = mod.module_id)} onkeydown={(e) => e.key === 'Enter' && (expandedModule === mod.module_id ? collapseModule() : (collapseModule(), expandedModule = mod.module_id))}>
                     <div id="card_header_container">
-                        <h2 class="card_header"> {mod.module_id} </h2>
+                        <h2 class="card_header">{mod.module_name || mod.module_id}</h2>
                     </div>
 
                     <div id="card_actions">
@@ -357,7 +363,7 @@
                               
                               {#each mod.markers as mk}
                                   <div class="marker_row">
-                                      <span class="marker_id">{mk.marker_id}</span>
+                                      <span class="marker_id">{mk.marker_name || mk.marker_id}</span>
                                       <span class="marker_meta">{mk.description} — {mk.unit} ({mk.volatility_class})</span>
                                       <button type="button" id="edit_btn" onclick={(e) => {e.stopPropagation(); toggleEditMarker(mod.module_id, mk)}}>{@html EditIcon}</button>
                                       <button type="button" id="zone_refs_btn" onclick={(e) => {e.stopPropagation(); toggleZoneRef(mod.module_id, mk.marker_id)}}>{@html LevelsIcon}</button>
@@ -431,6 +437,7 @@
 
                                   {#if editingMarker && editingMarker.module_id === mod.module_id && editingMarker.marker_id === mk.marker_id}
                                       <div class="inline_form marker_edit_form" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); }} onkeydown={(e) => e.key === 'Enter' && e.stopPropagation()}>
+                                          <label>Marker Name <input type="text" bind:value={editMarker.marker_name}></label>
                                           <label>Description <input type="text" bind:value={editMarker.description}></label>
                                           <label>Unit <input type="text" bind:value={editMarker.unit}></label>
                                           <label>Volatility class
@@ -454,6 +461,7 @@
                                   <div class="inline_form marker_edit_form" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); }} onkeydown={(e) => e.key === 'Enter' && e.stopPropagation()}>
                                       <strong>New marker</strong>
                                       <label>Marker ID <input type="text" bind:value={newMarker.marker_id}></label>
+                                      <label>Marker Name <input type="text" bind:value={newMarker.marker_name}></label>
                                       <label>Description <input type="text" bind:value={newMarker.description}></label>
                                       <label>Unit <input type="text" bind:value={newMarker.unit}></label>
                                       <label>Volatility class
@@ -478,6 +486,7 @@
 
                       {#if editingModule && editingModule === mod.module_id}
                           <div class="inline_form" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); }} onkeydown={(e) => e.key === 'Enter' && e.stopPropagation()}>
+                              <label>Name <input type="text" bind:value={editModuleName}></label>
                               <label>Description <input type="text" bind:value={editModuleDescription}></label>
                               <button type="button" onclick={() => handleEditModule(mod.module_id)}>Save</button>
                               <button type="button" onclick={() => editingModule = ""}>Cancel</button>

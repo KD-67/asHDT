@@ -56,6 +56,7 @@ def init_db (db_path: str) -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS modules (
                 module_id    TEXT PRIMARY KEY,
+                module_name  TEXT,
                 description  TEXT,
                 format       TEXT
             )
@@ -66,12 +67,22 @@ def init_db (db_path: str) -> None:
                 id               INTEGER PRIMARY KEY,
                 module_id        TEXT NOT NULL,
                 marker_id        TEXT NOT NULL,
+                marker_name      TEXT,
                 description      TEXT,
                 unit             TEXT,
                 volatility_class TEXT,
                 UNIQUE(module_id, marker_id)
             )
         """)
+        # Runtime migrations for existing DBs
+        try:
+            conn.execute("ALTER TABLE modules ADD COLUMN module_name TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE markers ADD COLUMN marker_name TEXT")
+        except Exception:
+            pass
         conn.commit()
 
 # Opens connection to the SQLite db defined at db_path. sqlite.row makes columns accessible by name, not just by index position
@@ -124,16 +135,16 @@ def sync_modules(db_path: str, modules_path: str):
     with get_connection(db_path) as conn:
         for mod in data.get("modules", []):
             conn.execute(
-                "INSERT INTO modules (module_id, description, format) VALUES (?, ?, ?) "
-                "ON CONFLICT(module_id) DO UPDATE SET description=excluded.description, format=excluded.format",
-                (mod["module_id"], mod.get("description"), mod.get("format")),
+                "INSERT INTO modules (module_id, module_name, description, format) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(module_id) DO UPDATE SET module_name=excluded.module_name, description=excluded.description, format=excluded.format",
+                (mod["module_id"], mod.get("module_name"), mod.get("description"), mod.get("format")),
             )
             for mk in mod.get("markers", []):
                 conn.execute(
-                    "INSERT INTO markers (module_id, marker_id, description, unit, volatility_class) "
-                    "VALUES (?, ?, ?, ?, ?) ON CONFLICT(module_id, marker_id) DO UPDATE SET "
-                    "description=excluded.description, unit=excluded.unit, volatility_class=excluded.volatility_class",
-                    (mod["module_id"], mk["marker_id"], mk.get("description"), mk.get("unit"), mk.get("volatility_class")),
+                    "INSERT INTO markers (module_id, marker_id, marker_name, description, unit, volatility_class) "
+                    "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(module_id, marker_id) DO UPDATE SET "
+                    "marker_name=excluded.marker_name, description=excluded.description, unit=excluded.unit, volatility_class=excluded.volatility_class",
+                    (mod["module_id"], mk["marker_id"], mk.get("marker_name"), mk.get("description"), mk.get("unit"), mk.get("volatility_class")),
                 )
         conn.commit()
 
