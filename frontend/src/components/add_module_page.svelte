@@ -1,11 +1,19 @@
   <script>                                                                                                  
-      import { onMount } from "svelte";
-
+      let cardColor = '#d0e8ff';
+      let markerRowColor = 'aliceblue';
+      let addBtnColor = 'rgb(114, 231, 114)';
+      let viewBtnColor = 'rgb(209, 162, 252)';
+      let editBtnColor = 'aqua';
+      let deleteBtnColor = 'rgb(255, 180, 180)';
+      let zoneRefBtnColor = 'rgb(252, 217, 18)';
+    
       import ViewIcon from "../assets/view_icon.svg?raw";
       import AddIcon from "../assets/add_icon.svg?raw";
       import EditIcon from "../assets/edit_icon.svg?raw";
       import DeleteIcon from "../assets/delete_icon.svg?raw";
       import LevelsIcon from "../assets/levels_icon.svg?raw";
+
+      import { onMount } from "svelte";
 
       const BASE_URL = "http://localhost:8000";
 
@@ -44,8 +52,7 @@
       let editDemoZone = $state({ healthy_min: "", healthy_max: "", vulnerability_margin: "" });
 
       function emptyMarker() {
-          return { marker_id: "", marker_name: "", description: "", unit: "", volatility_class: "", healthy_min: "",
-  healthy_max: "", vulnerability_margin: "" };
+          return { marker_id: "", marker_name: "", description: "", unit: "", volatility_class: "", healthy_min: "", healthy_max: "", vulnerability_margin: "" };
       }
 
       onMount(loadModules);
@@ -320,8 +327,8 @@
       <div id="main_container">
 
           <div id="mode_toggle">
-              <button type="button" class:active={mode === "view"} onclick={() => { mode = "view"; statusMessage = ""; }} id="viewedit_mod_btn">{@html ViewIcon}</button>
-              <button type="button" class:active={mode === "add"}  onclick={() => { mode = "add"; statusMessage = ""; }} id="add_mod_btn">{@html AddIcon}</button>
+              <button type="button" style="--viewBtnColor: {viewBtnColor}" class:active={mode === "view"} onclick={() => { mode = "view"; statusMessage = ""; }} id="viewedit_mod_btn">{@html ViewIcon}</button>
+              <button type="button" style='--addBtnColor: {addBtnColor}' class:active={mode === "add"}  onclick={() => { mode = "add"; statusMessage = ""; }} class="add_btn">{@html AddIcon}</button>
             
               {#if statusMessage}
               <p id="status_msg" class:error={!statusOk}>{statusMessage}</p>
@@ -336,16 +343,16 @@
                   <p>No modules found.</p>
               {/if}
               {#each modules as mod}
-                <div class="module_card" role="button" tabindex="0" onclick={() => expandedModule === mod.module_id ? collapseModule() : (collapseModule(), expandedModule = mod.module_id)} onkeydown={(e) => e.key === 'Enter' && (expandedModule === mod.module_id ? collapseModule() : (collapseModule(), expandedModule = mod.module_id))}>
+                <div class="module_card" role="button" style="--cardColor: {cardColor}" tabindex="0" onclick={() => expandedModule === mod.module_id ? collapseModule() : (collapseModule(), expandedModule = mod.module_id)} onkeydown={(e) => e.key === 'Enter' && (expandedModule === mod.module_id ? collapseModule() : (collapseModule(), expandedModule = mod.module_id))}>
                     <div id="card_header_container">
                         <h2 class="card_header">{mod.module_name || mod.module_id}</h2>
                     </div>
 
                     <div id="card_actions">
-                        <button type="button" id="edit_btn" onclick={(e) => { e.stopPropagation(); toggleEditModule(mod); }}>
+                        <button style="--editBtnColor: {editBtnColor}" type="button" class="edit_btn" onclick={(e) => { e.stopPropagation(); toggleEditModule(mod); }}>
                             {@html EditIcon}
                         </button>
-                        <button type="button" id="delete_btn" onclick={(e) => { e.stopPropagation(); handleDeleteModule(mod.module_id); }}>
+                        <button style="--deleteBtnColor: {deleteBtnColor}" type="button" class="delete_btn" onclick={(e) => { e.stopPropagation(); handleDeleteModule(mod.module_id); }}>
                             {@html DeleteIcon}
                         </button>
                     </div>
@@ -362,12 +369,12 @@
                               {/if}
                               
                               {#each mod.markers as mk}
-                                  <div class="marker_row">
+                                  <div style="--markerRowColor: {markerRowColor}" class="marker_row">
                                       <span class="marker_id">{mk.marker_name || mk.marker_id}</span>
                                       <span class="marker_meta">{mk.description} — {mk.unit} ({mk.volatility_class})</span>
-                                      <button type="button" id="edit_btn" onclick={(e) => {e.stopPropagation(); toggleEditMarker(mod.module_id, mk)}}>{@html EditIcon}</button>
-                                      <button type="button" id="zone_refs_btn" onclick={(e) => {e.stopPropagation(); toggleZoneRef(mod.module_id, mk.marker_id)}}>{@html LevelsIcon}</button>
-                                      <button type="button" id="delete_btn" onclick={(e) => {e.stopPropagation(); handleDeleteMarker(mod.module_id, mk.marker_id)}}>{@html DeleteIcon}</button>
+                                      <button style="--editBtnColor: {editBtnColor}" type="button" class="edit_btn" onclick={(e) => {e.stopPropagation(); toggleEditMarker(mod.module_id, mk)}}>{@html EditIcon}</button>
+                                      <button style="--zoneRefBtnColor: {zoneRefBtnColor}" type="button" id="zone_refs_btn" onclick={(e) => {e.stopPropagation(); toggleZoneRef(mod.module_id, mk.marker_id)}}>{@html LevelsIcon}</button>
+                                      <button style="--deleteBtnColor: {deleteBtnColor}" type="button" class="delete_btn" onclick={(e) => {e.stopPropagation(); handleDeleteMarker(mod.module_id, mk.marker_id)}}>{@html DeleteIcon}</button>
                                   </div>
 
                                   {#if expandedZoneRef?.module_id === mod.module_id && expandedZoneRef?.marker_id === mk.marker_id}
@@ -390,8 +397,8 @@
                                                                   <td><input type="number" bind:value={editDemoZone.healthy_max} style="width:80px"></td>
                                                                   <td><input type="number" bind:value={editDemoZone.vulnerability_margin} style="width:80px"></td>
                                                                   <td>
-                                                                      <button type="button" onclick={() => handleEditDemoZone(mod.module_id, mk.marker_id, row.sex, row.age)}>Save</button>
-                                                                      <button type="button" onclick={() => editingDemoZone = null}>Cancel</button>
+                                                                      <button style="--editBtnColor: {editBtnColor}" type="button" class="edit_btn" onclick={() => handleEditDemoZone(mod.module_id, mk.marker_id, row.sex, row.age)}>Save</button>
+                                                                      <button style="--deleteBtnColor: {deleteBtnColor}" type="button" class="delete_btn" onclick={() => editingDemoZone = null}>Cancel</button>
                                                                   </td>
                                                               </tr>
                                                           {:else}
@@ -402,8 +409,8 @@
                                                                   <td>{row.healthy_max}</td>
                                                                   <td>{row.vulnerability_margin}</td>
                                                                   <td>
-                                                                      <button type="button" onclick={() => { editingDemoZone = { sex: row.sex, age: row.age }; editDemoZone = { healthy_min: row.healthy_min, healthy_max: row.healthy_max, vulnerability_margin: row.vulnerability_margin }; }}>✏️</button>
-                                                                      <button type="button" class="delete_btn" onclick={() => handleDeleteDemoZone(mod.module_id, mk.marker_id, row.sex, row.age)}>✕</button>
+                                                                      <button style="--editBtnColor: {editBtnColor}" type="button" class="edit_btn" onclick={() => { editingDemoZone = { sex: row.sex, age: row.age }; editDemoZone = { healthy_min: row.healthy_min, healthy_max: row.healthy_max, vulnerability_margin: row.vulnerability_margin }; }}>{@html EditIcon}</button>
+                                                                      <button style="--deleteBtnColor: {deleteBtnColor}" type="button" class="delete_btn" onclick={() => handleDeleteDemoZone(mod.module_id, mk.marker_id, row.sex, row.age)}>{@html DeleteIcon}</button>
                                                                   </td>
                                                               </tr>
                                                           {/if}
@@ -450,8 +457,8 @@
                                           <label>Healthy min <input type="number" bind:value={editMarker.healthy_min}></label>
                                           <label>Healthy max <input type="number" bind:value={editMarker.healthy_max}></label>
                                           <label>Vulnerability margin <input type="number" bind:value={editMarker.vulnerability_margin}></label>
-                                          <button type="button" onclick={() => handleEditMarker(mod.module_id, mk.marker_id)}>Save</button>
-                                          <button type="button" onclick={() => editingMarker = null}>Cancel</button>
+                                          <button style="--addBtnColor: {addBtnColor}" class="add_btn" type="button" onclick={() => handleEditMarker(mod.module_id, mk.marker_id)}>{@html AddIcon}</button>
+                                          <button style="--deleteBtnColor: {deleteBtnColor}" class="delete_btn" type="button" onclick={() => editingMarker = null}>{@html DeleteIcon}</button>
                                       </div>
                                   {/if}
                               {/each}
@@ -479,7 +486,7 @@
                                       <button type="button" onclick={() => addingMarkerTo = ""}>Cancel</button>
                                   </div>
                               {:else}
-                                  <button type="button" class="add_marker_btn" onclick={(e) => { e.stopPropagation(); startAddMarker(mod.module_id); }}>{@html AddIcon}</button>
+                                  <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" id="add_marker_btn" onclick={(e) => { e.stopPropagation(); startAddMarker(mod.module_id); }}>{@html AddIcon}</button>
                               {/if}
                           </div>
                       {/if}
@@ -505,7 +512,7 @@
                     <input type="text" id="new_module_id" bind:value={new_module_id}>
                     <label for="new_module_description">Description</label>
                     <input type="text" id="new_module_description" bind:value={new_module_description}>  
-                    <button type="button" id="add_new_mod_btn" onclick={handleCreateModule}>{@html AddIcon}</button>     
+                    <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" id="add_new_mod_btn" onclick={handleCreateModule}>{@html AddIcon}</button>     
                 </form>
 
                 <div id="preview_container">
@@ -524,6 +531,8 @@
 
     * {
         color: #422800;
+        margin: 0;
+        padding: 0;
     }
 
     /* BUTTONS */
@@ -557,33 +566,31 @@
     }
 
     #viewedit_mod_btn {
-        background-color: rgb(209, 162, 252);
+        background-color: var(--viewBtnColor);
     }
 
-    #add_mod_btn {
-        background-color: rgb(114, 231, 114);
+    .add_btn {
+        background-color: var(--addBtnColor);
     }
 
-    #delete_btn { 
-        background-color: rgb(255, 180, 180); 
+    .delete_btn { 
+        background-color: var(--deleteBtnColor); 
     }
 
-    #edit_btn {
-        background-color: aqua;
+    .edit_btn {
+        background-color: var(--editBtnColor);
     }
 
-    .add_marker_btn { 
-        background-color: rgb(114, 231, 114);
+    #add_marker_btn { 
         margin-top: 5px;
         justify-self: end;
     }
 
     #zone_refs_btn { 
-        background-color: rgb(252, 217, 18); 
+        background-color: var(--zoneRefBtnColor); 
     }
 
     #add_new_mod_btn {
-        background-color: rgb(114, 231, 114);
         justify-self: end;
     }
 
@@ -629,7 +636,7 @@
         display: grid;
         border: 2px solid #422800;
         border-radius: 0.5rem;
-        background-color: #d0e8ff;
+        background-color: var(--cardColor);
         box-shadow: 5px 5px 0px #422800;
         margin: 5px;
         padding: 8px;
@@ -690,7 +697,7 @@
         box-shadow: 5px 5px 0px #422800;
         gap: 8px;
         padding: 3px 3px;
-        background-color: aliceblue;
+        background-color: var(--markerRowColor);
         margin: 5px 5px;
     }
 
