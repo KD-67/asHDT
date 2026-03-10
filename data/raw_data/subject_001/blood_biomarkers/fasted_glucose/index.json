@@ -1,0 +1,19 @@
+{
+  "subject_id": "subject_001",
+  "module_id": "blood_biomarkers",
+  "marker_id": "fasted_glucose",
+  "entries": [
+    {
+      "measured_at": "2022-03-09T20:00:00.000Z",
+      "file": "2022-03-09T20-00-00.000Z.json"
+    },
+    {
+      "measured_at": "2023-01-14T22:00:00.000Z",
+      "file": "2023-01-14T22-00-00.000Z.json"
+    },
+    {
+      "measured_at": "2024-11-14T22:00:00.000Z",
+      "file": "2024-11-14T22-00-00.000Z.json"
+    }
+  ]
+}

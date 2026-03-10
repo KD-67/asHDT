@@ -55,8 +55,11 @@
 </main>
 
 <style>
+  * {
+    font-family: sans-serif;
+  }
+
   header {
-    /* border: 1px solid black; */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -93,7 +96,7 @@
 
   .nav_link:hover {
   background-color: rgb(255, 189, 189);
-  transform: scale(103%);
+  transform: scale(105%);
   }
 
   .nav_link:active {

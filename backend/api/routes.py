@@ -233,13 +233,14 @@ def post_subject(body: SubjectProfile, request: Request):
     subject_id = f"subject_{str(max_num + 1).zfill(3)}"
     subject_dir = os.path.join(rawdata_root, subject_id)
     os.makedirs(subject_dir, exist_ok=True)
-    profile = {"subject_id": subject_id, **body.model_dump()}
+    created_at = datetime.now(timezone.utc).isoformat()
+    profile = {"subject_id": subject_id, **body.model_dump(), "created_at": created_at}
     with open(os.path.join(subject_dir, "profile.json"), "w", encoding="utf-8") as f:
         json.dump(profile, f, indent=2)
     with get_connection(db_path) as conn:
         conn.execute(
-            "INSERT INTO subjects (subject_id, first_name, last_name, sex, dob, email, phone, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (subject_id, body.first_name, body.last_name, body.sex, body.dob, body.email, body.phone, body.notes),
+            "INSERT INTO subjects (subject_id, first_name, last_name, sex, dob, email, phone, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (subject_id, body.first_name, body.last_name, body.sex, body.dob, body.email, body.phone, body.notes, created_at),
         )
         conn.commit()
     return {"subject_id": subject_id}
@@ -252,7 +253,10 @@ def put_subject(subject_id: str, body: SubjectProfile, request: Request):
     profile_path = os.path.join(rawdata_root, subject_id, "profile.json")
     if not os.path.isfile(profile_path):
         raise HTTPException(status_code=404, detail="Subject not found")
-    profile = {"subject_id": subject_id, **body.model_dump()}
+    with open(profile_path, "r", encoding="utf-8") as f:
+        existing = json.load(f)
+    created_at = existing.get("created_at", "")
+    profile = {"subject_id": subject_id, **body.model_dump(), "created_at": created_at}
     with open(profile_path, "w", encoding="utf-8") as f:
         json.dump(profile, f, indent=2)
     with get_connection(db_path) as conn:

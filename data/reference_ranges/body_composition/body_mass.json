@@ -2,8 +2,8 @@
   "module_id": "body_composition",
   "marker_id": "body_mass",
   "generic": {
-    "healthy_min": 70.0,
-    "healthy_max": 85.0,
+    "healthy_min": 1.0,
+    "healthy_max": 100.0,
     "vulnerability_margin": 0.1
   }
 }

@@ -1,9 +1,11 @@
-  <script>                                                                                                  
+  <script>
+      let textColor = '#422800';
+      let borderColor = '#422800';
       let cardColor = '#d0e8ff';
-      let markerRowColor = 'aliceblue';
+      let cardSectionColor = 'aliceblue';
       let addBtnColor = 'rgb(114, 231, 114)';
       let viewBtnColor = 'rgb(209, 162, 252)';
-      let editBtnColor = 'aqua';
+      let editBtnColor = '#4CF3FC';
       let deleteBtnColor = 'rgb(255, 180, 180)';
       let zoneRefBtnColor = 'rgb(252, 217, 18)';
     
@@ -323,7 +325,7 @@
         
   </script>
 
-  <main>
+  <main style="--textColor: {textColor}; --borderColor: {borderColor}">
       <div id="main_container">
 
           <div id="mode_toggle">
@@ -369,7 +371,7 @@
                               {/if}
                               
                               {#each mod.markers as mk}
-                                  <div style="--markerRowColor: {markerRowColor}" class="marker_row">
+                                  <div style="--cardSectionColor: {cardSectionColor}" class="marker_row">
                                       <span class="marker_id">{mk.marker_name || mk.marker_id}</span>
                                       <span class="marker_meta">{mk.description} — {mk.unit} ({mk.volatility_class})</span>
                                       <button style="--editBtnColor: {editBtnColor}" type="button" class="edit_btn" onclick={(e) => {e.stopPropagation(); toggleEditMarker(mod.module_id, mk)}}>{@html EditIcon}</button>
@@ -505,14 +507,24 @@
 
             {#if mode === "add"}
                 <form id="new_mod_form">
-                    <h2>Add new module</h2>
-                    <label for="new_module_name">Module Name</label>
-                    <input type="text" id="new_module_name" bind:value={new_module_name}>
-                    <label for="new_module_id">Module ID</label>
-                    <input type="text" id="new_module_id" bind:value={new_module_id}>
-                    <label for="new_module_description">Description</label>
-                    <input type="text" id="new_module_description" bind:value={new_module_description}>  
-                    <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" id="add_new_mod_btn" onclick={handleCreateModule}>{@html AddIcon}</button>     
+                    <h2 id="new_mod_header">Add new module</h2>
+
+                    <label for="new_module_name" id="new_mod_name">Module Name
+                        <input type="text" id="new_module_name" bind:value={new_module_name}>
+                    </label>
+                    
+                    <label for="new_module_id" id="new_mod_id">Module ID
+                        <input type="text" id="new_module_id" bind:value={new_module_id}>
+                    </label>
+                    
+                    <label for="new_module_description" id="new_mod_description">Description
+                        <input type="text" id="new_module_description" bind:value={new_module_description}> 
+                    </label>
+
+                    <div id="add_new_mod_btn_container">
+                        <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" id="add_new_mod_btn" onclick={handleCreateModule}>{@html AddIcon}</button> 
+                    </div>
+                        
                 </form>
 
                 <div id="preview_container">
@@ -530,7 +542,7 @@
   <style>
 
     * {
-        color: #422800;
+        color: var(--textColor);
         margin: 0;
         padding: 0;
     }
@@ -541,27 +553,27 @@
         border-radius: 30px;
         margin: 0.75rem 0.25rem;
         padding: 0.25rem 0.75rem;
-        box-shadow: 5px 5px 0px #422800;
+        box-shadow: 5px 5px 0px var(--borderColor);
         cursor: pointer;
         font-size: 10px;
-        color: #422800;
+        color: var(--textColor);
     }
       
     button :global(svg) {
-        overflow: visible;                                                                     
-        width: 20px;                                                                                
+        overflow: visible;
+        width: 20px;
         height: 20px;
-        color: #422800;
+        color: var(--textColor);
     }
 
     button:hover {
         transform: scale(102%);
         font-weight: 550;
-        border: 2px solid black;
+        border: 2px solid var(--borderColor);
     }
 
     button:active {
-        box-shadow: #422800 2px 2px 0 0;
+        box-shadow: var(--borderColor) 2px 2px 0 0;
         transform: translate(2px, 2px);
     }
 
@@ -597,7 +609,7 @@
     /* MAIN DIV */
 
     #main_container {
-        border: 1px solid black;
+        border: 1px solid var(--borderColor);
         display: flex;
         justify-content: center;
         flex-wrap: wrap;
@@ -634,10 +646,10 @@
 
     .module_card {
         display: grid;
-        border: 2px solid #422800;
+        border: 2px solid var(--borderColor);
         border-radius: 0.5rem;
         background-color: var(--cardColor);
-        box-shadow: 5px 5px 0px #422800;
+        box-shadow: 5px 5px 0px var(--borderColor);
         margin: 5px;
         padding: 8px;
         grid-template-rows: auto auto auto auto;
@@ -680,7 +692,7 @@
     .markers_section {
         grid-area: 4 / 1 / 5 / 3;
         display: grid;
-        border-top: 2px solid #422800;
+        border-top: 2px solid var(--borderColor);
         margin-top: 10px;
         padding-top: 0;
     }
@@ -692,12 +704,12 @@
     .marker_row {
         display: flex;
         align-items: center;
-        border: 2px solid #422800;
+        border: 2px solid var(--borderColor);
         border-radius: 0.5rem;
-        box-shadow: 5px 5px 0px #422800;
+        box-shadow: 5px 5px 0px var(--borderColor);
         gap: 8px;
         padding: 3px 3px;
-        background-color: var(--markerRowColor);
+        background-color: var(--cardSectionColor);
         margin: 5px 5px;
     }
 
@@ -723,12 +735,12 @@
         flex-wrap: wrap;
         align-items: center;
         gap: 5px;
-        border: 2px solid #422800;
+        border: 2px solid var(--borderColor);
         border-radius: 0.5rem;
         background-color: lightyellow;
         padding: 8px;
         margin: 5px 0;
-        box-shadow: 5px 5px 0px #422800;
+        box-shadow: 5px 5px 0px var(--borderColor);
     }
 
     .marker_edit_form label { 
@@ -768,24 +780,60 @@
         font-size: 0.85em; 
     }
 
-    /* ADD MODE */   
-    form {
+    /* ADD MODE */
+    #new_mod_form {
         display: grid;
-        border: 2px solid #422800;
+        grid-template-columns: auto auto;
+        grid-template-rows: auto auto auto auto;
+        gap: 10px;
+        border: 2px solid var(--borderColor);
         border-radius: 0.5rem;
         background-color: #d0e8ff;
-        box-shadow: 5px 5px 0px #422800;
+        box-shadow: 5px 5px 0px var(--borderColor);
         margin: 5px;
         padding: 5px;
     }
 
+    #new_mod_form label {
+        display: grid;
+    }
+
+    #new_mod_form input {
+        margin-top: 5px;
+        padding: 5px;
+        border: 1px solid var(--borderColor);
+        border-radius: 3px;
+    }
+
     #preview_container {
-        border: 2px solid #422800;
+        border: 2px solid var(--borderColor);
         border-radius: 0.5rem;
         background-color: #d0e8ff;
-        box-shadow: 5px 5px 0px #422800;
+        box-shadow: 5px 5px 0px var(--borderColor);
         margin: 5px;
         padding: 5px;
+    }
+
+    #new_mod_header {
+        grid-area: 1 / 1 / 2 / 3;
+    }
+
+    #new_mod_name {
+        grid-area: 2 / 1 / 3 / 2;
+    }
+
+    #new_mod_id {
+        grid-area: 2 / 2 / 3 / 3;
+    }
+
+    #new_mod_description {
+        grid-area: 3 / 1 / 4 / 3;
+    }
+
+    #add_new_mod_btn_container {
+        grid-area: 4 / 2 / 5 / 3;
+        display: flex;
+        justify-content: flex-end;
     }
 
   </style>

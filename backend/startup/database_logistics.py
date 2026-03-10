@@ -102,8 +102,8 @@ def sync_subjects(db_path: str, rawdata_root: str):
                 p = json.load(f)
             conn.execute(
                 """
-                INSERT INTO subjects (subject_id, first_name, last_name, sex, dob, email, phone, notes)
-                VALUES (:subject_id, :first_name, :last_name, :sex, :dob, :email, :phone, :notes)
+                INSERT INTO subjects (subject_id, first_name, last_name, sex, dob, email, phone, notes, created_at)
+                VALUES (:subject_id, :first_name, :last_name, :sex, :dob, :email, :phone, :notes, :created_at)
                 ON CONFLICT(subject_id) DO UPDATE SET
                     first_name = excluded.first_name,
                     last_name  = excluded.last_name,
@@ -122,6 +122,7 @@ def sync_subjects(db_path: str, rawdata_root: str):
                     "email":      p.get("email"),
                     "phone":      p.get("phone"),
                     "notes":      p.get("notes"),
+                    "created_at": p.get("created_at", ""),
                 },
             )
         conn.commit()

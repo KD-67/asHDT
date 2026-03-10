@@ -1,0 +1,9 @@
+{
+  "module_id": "blood_biomarkers",
+  "marker_id": "fasted_glucose",
+  "generic": {
+    "healthy_min": 60.0,
+    "healthy_max": 99.0,
+    "vulnerability_margin": 0.1
+  }
+}

@@ -31,11 +31,33 @@
         {
           "marker_id": "body_mass",
           "marker_name": "Body Mass",
-          "description": "Mass of subject in kilograms",
+          "description": "Mass of subject in kilograms, measured upon waking",
           "unit": "kg",
           "volatility_class": "medium_term"
         }
       ]
+    },
+    {
+      "module_id": "blood_biomarkers",
+      "module_name": "Blood Biomarkers",
+      "description": "Results of periodic blood biochemistry profile",
+      "format": "json",
+      "markers": [
+        {
+          "marker_id": "fasted_glucose",
+          "marker_name": "Fasted Blood Glucose",
+          "description": "Concentration of blood glucose levels after complete caloric restriction of minimum 12 hours",
+          "unit": "mg/dL",
+          "volatility_class": "medium_term"
+        }
+      ]
+    },
+    {
+      "module_id": "pee_pee",
+      "module_name": "Poopoo",
+      "description": "djfklsdlfhkjlsabl keiofw",
+      "format": "json",
+      "markers": []
     }
   ]
 }

@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "module_id": "blood_biomarkers",
+  "marker_id": "fasted_glucose",
+  "subject_id": "subject_001",
+  "measured_at": "2023-01-14T22:00:00.000Z",
+  "value": 87.2,
+  "unit": "mg/dL",
+  "data_quality": "good",
+  "created_at": "2026-03-10T11:09:16.263291Z"
+}

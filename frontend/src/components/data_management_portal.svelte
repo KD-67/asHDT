@@ -57,6 +57,7 @@ import DatasetManagement from "./dataset_management.svelte";
 
 .subpage_button:hover {
   background-color: #45c8fc;
+  transform: scale(105%);
 }
 
 .subpage_button:active {
