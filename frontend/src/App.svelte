@@ -41,7 +41,7 @@
     <DataManagementPortal />  
   {:else if currentPage == "request_report_form"}
     <RequestReportForm />
-  {:else if currentPage == "new_user_form"}
+  {:else if currentPage == "subject_management"}
     <SubjectManagement />
   {:else if currentPage == "add_module_page"}
     <AddModulePage />

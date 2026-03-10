@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(cd C:\\\\Users\\\\kevin\\\\proj\\\\asHDT\\\\frontend && npm run dev)",
+      "Bash(cd /c/Users/kevin/proj/asHDT/frontend && npm run dev)"
     ]
   }
 }

@@ -12,7 +12,7 @@ import DatasetManagement from "./dataset_management.svelte";
 
     <div class="subpage_container">
         <div>Click here to edit the subject list:</div>
-        <a class="subpage_button" href="http://localhost:5173/#new_user_form">Subject Management</a>
+        <a class="subpage_button" href="http://localhost:5173/#subject_management">Subject Management</a>
     </div>
     
     <div class="subpage_container">
