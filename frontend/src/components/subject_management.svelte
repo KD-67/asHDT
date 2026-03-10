@@ -50,6 +50,7 @@
     let dpUnit = $state("");
     let dpQuality = $state("good");
     let uploadFile = $state(null);
+    let addFormOpen = $state(false);
 
     // Edit datapoint form
     let editingDp = $state(null);
@@ -224,6 +225,7 @@
         selectedDataset = { module_id, marker_id };
         datapoints = [];
         editingDp = null;
+        addFormOpen = false;
         statusMessage = "";
         const res = await fetch(`${BASE_URL}/subjects/${datasetsSubject}/datasets/${module_id}/${marker_id}`);
         if (res.ok) {
@@ -493,11 +495,19 @@
                                         <tbody>
                                             {#each datasets as ds}
                                                 <tr class="dataset_row" class:selected={selectedDataset?.module_id === ds.module_id && selectedDataset?.marker_id === ds.marker_id}
-                                                    onclick={() => loadDatapoints(ds.module_id, ds.marker_id)}>
+                                                    onclick={() => {
+                                                        if (selectedDataset?.module_id === ds.module_id && selectedDataset?.marker_id === ds.marker_id) {
+                                                            selectedDataset = null;
+                                                            datapoints = [];
+                                                            editingDp = null;
+                                                        } else {
+                                                            loadDatapoints(ds.module_id, ds.marker_id);
+                                                        }
+                                                    }}>
                                                     <td>{ds.module_id}</td>
                                                     <td>{ds.marker_id}</td>
                                                     <td>{ds.entry_count}</td>
-                                                    <td>
+                                                    <td class="delete_dataset_btn_container">
                                                         <button style="--deleteBtnColor: {deleteBtnColor}" type="button" class="delete_btn"
                                                             onclick={(e) => { e.stopPropagation(); handleDeleteDataset(ds.module_id, ds.marker_id); }}>
                                                             {@html DeleteIcon}
@@ -525,7 +535,6 @@
                                                         <th>Unit</th>
                                                         <th>Quality</th>
                                                         <th></th>
-                                                        <th></th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -535,12 +544,11 @@
                                                             <td>{dp.value}</td>
                                                             <td>{dp.unit}</td>
                                                             <td>{dp.data_quality}</td>
-                                                            <td>
+                                                            <td class="datapoints_btns_container">
                                                                 <button style="--editBtnColor: {editBtnColor}" type="button" class="edit_btn" onclick={() => handleStartEdit(dp)}>
                                                                     {@html EditIcon}
                                                                 </button>
-                                                            </td>
-                                                            <td>
+
                                                                 <button style="--deleteBtnColor: {deleteBtnColor}" type="button" class="delete_btn" onclick={() => handleDeleteDatapoint(dp.measured_at)}>
                                                                     {@html DeleteIcon}
                                                                 </button>
@@ -573,30 +581,35 @@
                                         {/if}
 
                                         <!-- Add datapoint form -->
-                                        <div class="add_datapoint_form">
-                                            <h4 class="dp_form_header">Add datapoint</h4>
-                                            <div class="add_tab_toggle">
-                                                <button type="button" class:active_tab={addTab === "form"} onclick={() => addTab = "form"}>Form</button>
-                                                <button type="button" class:active_tab={addTab === "upload"} onclick={() => addTab = "upload"}>Upload JSON</button>
-                                            </div>
+                                        <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" onclick={() => addFormOpen = !addFormOpen}>
+                                            {addFormOpen ? 'Cancel' : 'Add datapoint'}
+                                        </button>
 
-                                            {#if addTab === "form"}
-                                                <label>Timestamp <input type="datetime-local" bind:value={dpTimestamp}></label>
-                                                <label>Value <input type="number" step="any" bind:value={dpValue}></label>
-                                                <label>Unit <input type="text" bind:value={dpUnit}></label>
-                                                <label>Quality
-                                                    <select bind:value={dpQuality}>
-                                                        <option value="good">good</option>
-                                                        <option value="suspect">suspect</option>
-                                                        <option value="poor">poor</option>
-                                                    </select>
-                                                </label>
-                                                <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" onclick={handleAddForm}>{@html AddIcon}</button>
-                                            {:else}
-                                                <label>JSON file <input type="file" accept=".json" onchange={(e) => uploadFile = e.target.files[0]}></label>
-                                                <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" onclick={handleUpload}>{@html AddIcon}</button>
-                                            {/if}
-                                        </div>
+                                        {#if addFormOpen}
+                                            <div class="add_datapoint_form">
+                                                <div class="add_tab_toggle">
+                                                    <button type="button" class:active_tab={addTab === "form"} onclick={() => addTab = "form"}>Form</button>
+                                                    <button type="button" class:active_tab={addTab === "upload"} onclick={() => addTab = "upload"}>Upload JSON</button>
+                                                </div>
+
+                                                {#if addTab === "form"}
+                                                    <label>Timestamp <input type="datetime-local" bind:value={dpTimestamp}></label>
+                                                    <label>Value <input type="number" step="any" bind:value={dpValue}></label>
+                                                    <label>Unit <input type="text" bind:value={dpUnit}></label>
+                                                    <label>Quality
+                                                        <select bind:value={dpQuality}>
+                                                            <option value="good">good</option>
+                                                            <option value="suspect">suspect</option>
+                                                            <option value="poor">poor</option>
+                                                        </select>
+                                                    </label>
+                                                    <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" onclick={handleAddForm}>{@html AddIcon}</button>
+                                                {:else}
+                                                    <label>JSON file <input type="file" accept=".json" onchange={(e) => uploadFile = e.target.files[0]}></label>
+                                                    <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" onclick={handleUpload}>{@html AddIcon}</button>
+                                                {/if}
+                                            </div>
+                                        {/if}
 
                                     </div>
                                 {/if}
@@ -910,6 +923,11 @@
         background-color: #b0d0ff;
     }
 
+    .delete_dataset_btn_container {
+        display: flex;
+        justify-content: flex-end;
+    }
+
     .editing_row {
         background-color: rgb(255, 250, 210);
     }
@@ -931,6 +949,11 @@
     .dp_panel_header {
         font-size: 0.95em;
         margin-bottom: 6px;
+    }
+
+    .datapoints_btns_container {
+        display: flex;
+        justify-content: flex-end;
     }
 
     /* ADD/EDIT DATAPOINT FORM */
