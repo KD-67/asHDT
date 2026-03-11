@@ -32,7 +32,7 @@ app.add_middleware(
 )
 
 # ── REST router (existing — kept until Svelte frontend is migrated to GraphQL) ─
-app.include_router(router)
+# app.include_router(router)
 
 # ── GraphQL router ─────────────────────────────────────────────────────────────
 # Mounted at /graphql alongside REST. GraphiQL IDE available at /graphql in browser.

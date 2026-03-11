@@ -1,5 +1,9 @@
 <script>
-    let loading = false;
+    import { gql, subscribe } from "../lib/gql.js";
+
+    let loading = $state(false);
+    let submitting = $state(false);
+    let submitStatus = $state("");
 
     let subjects = $state([]);
     let subject_profile = $state({});
@@ -20,90 +24,194 @@
 
     async function loadSubjects() {
         loading = true;
-        const response = await fetch("http://localhost:8000/subjects");
-        subjects = await response.json();
-        // fetch profile of each subject
-        for (const subject of subjects) {
-            const res = await fetch(`http://localhost:8000/subjects/${subject}/profile`);
-            const profile = await res.json();
-            if (profile.first_name && profile.last_name){
-                subject_names[subject] = profile.first_name + " " + profile.last_name + " // ID: (" + profile.subject_id + ")";
-            }          
+        try {
+            const data = await gql(`query { subjects { subjectId firstName lastName } }`);
+            subjects = data.subjects.map(s => s.subjectId);
+            subject_names = {};
+            for (const s of data.subjects) {
+                if (s.firstName && s.lastName) {
+                    subject_names[s.subjectId] = `${s.firstName} ${s.lastName} // ID: (${s.subjectId})`;
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load subjects:", e);
+        } finally {
+            loading = false;
         }
-        loading = false;
     }
 
     async function loadSubjectProfile(subjectID) {
         loading = true;
         try {
-            const response = await fetch(`http://localhost:8000/subjects/${subjectID}/profile`);
-            subject_profile = await response.json();
+            const data = await gql(
+                `query($id: String!) { subject(subjectId: $id) { subjectId firstName lastName sex dob email phone notes createdAt } }`,
+                { id: subjectID }
+            );
+            const s = data.subject;
+            subject_profile = {
+                subject_id: s.subjectId,
+                first_name: s.firstName,
+                last_name:  s.lastName,
+                sex:        s.sex,
+                dob:        s.dob,
+                email:      s.email,
+                phone:      s.phone,
+                notes:      s.notes,
+                created_at: s.createdAt,
+            };
         } catch (error) {
             console.error("Failed to fetch profile:", error);
         } finally {
-            loading = false
+            loading = false;
         }
     }
 
     async function loadModules() {
         loading = true;
-        const response = await fetch("http://localhost:8000/modules");
-        const data = await response.json();
-        modules = data.modules;                                                 // registry returns { modules: [...] }
-        loading = false;
+        try {
+            const data = await gql(`query { modules { moduleId moduleName markers { markerId markerName } } }`);
+            modules = data.modules.map(m => ({
+                module_id:   m.moduleId,
+                module_name: m.moduleName,
+                markers:     m.markers.map(mk => ({ marker_id: mk.markerId, marker_name: mk.markerName })),
+            }));
+        } catch (e) {
+            console.error("Failed to load modules:", e);
+        } finally {
+            loading = false;
+        }
     }
 
     function onModuleChange() {
         const module = modules.find(m => m.module_id === selected_module);
-        markers = module ? module.markers : [];                                 // update available markers when module changes
+        markers = module ? module.markers : [];
         selected_marker = "";
     }
 
     async function loadZoneReference() {
         if (!selected_subject || !selected_module || !selected_marker) return;
         try {
-            const res = await fetch(`http://localhost:8000/subjects/${selected_subject}/zone-reference/${selected_module}/${selected_marker}`);
-            if (!res.ok) { zone_reference_note = null; return; }
-            const data = await res.json();
-            selected_healthy_min = data.healthy_min;
-            selected_healthy_max = data.healthy_max;
-            selected_vulnerability_margin = data.vulnerability_margin;
-            zone_reference_note = data.note;
+            const data = await gql(
+                `query($s: String!, $mo: String!, $ma: String!) {
+                    zoneReference(subjectId: $s, moduleId: $mo, markerId: $ma) {
+                        healthyMin healthyMax vulnerabilityMargin note
+                    }
+                }`,
+                { s: selected_subject, mo: selected_module, ma: selected_marker }
+            );
+            const ref = data.zoneReference;
+            if (!ref) { zone_reference_note = null; return; }
+            selected_healthy_min          = ref.healthyMin;
+            selected_healthy_max          = ref.healthyMax;
+            selected_vulnerability_margin = ref.vulnerabilityMargin;
+            zone_reference_note           = ref.note;
         } catch (error) {
             console.error("Failed to fetch zone reference:", error);
         }
     }
 
     async function submitTimegraphRequest() {
-        const payload = {                                                       // matches the pydantic request model from routes.py
-            subject_id: selected_subject,
-            module_id: selected_module,
-            marker_id: selected_marker,
-            timeframe: {
-                start_time: new Date(selected_start_time).toISOString(),
-                end_time: new Date(selected_end_time).toISOString()
-            },
-            zone_boundaries: {
-                healthy_min: selected_healthy_min,
-                healthy_max: selected_healthy_max,
-                vulnerability_margin: selected_vulnerability_margin
-            },
-            fitting: {
-                polynomial_degree: selected_polynomial_degree
-            }
-        };
+        submitting   = true;
+        submitStatus = "Submitting analysis job...";
         try {
-            const response = await fetch("http://localhost:8000/timegraph", {   // sends the payload to the backend
-                method: "POST",
-                headers: {"Content-Type":"application/json"},
-                body: JSON.stringify(payload)
-            });
-            const report = await response.json();
+            // 1. Enqueue the job
+            const mutData = await gql(
+                `mutation($input: AnalysisInput!) { submitAnalysis(input: $input) { jobId status } }`,
+                {
+                    input: {
+                        subjectId:  selected_subject,
+                        moduleId:   selected_module,
+                        markerIds:  [selected_marker],
+                        method:     "TRAJECTORY",
+                        timeframe: {
+                            startTime: new Date(selected_start_time).toISOString(),
+                            endTime:   new Date(selected_end_time).toISOString(),
+                        },
+                        trajectoryParams: {
+                            polynomialDegree:    selected_polynomial_degree,
+                            healthyMin:          selected_healthy_min,
+                            healthyMax:          selected_healthy_max,
+                            vulnerabilityMargin: selected_vulnerability_margin,
+                        },
+                    },
+                }
+            );
 
-            localStorage.setItem("timegraph_report", JSON.stringify(report));
-            window.open("http://localhost:5173/#timegraph", "_blank");
+            const jobId = mutData.submitAnalysis.jobId;
+            submitStatus = "Analysis running...";
+
+            // 2. Stream job status via WebSocket subscription
+            await new Promise((resolve, reject) => {
+                let unsub;
+                unsub = subscribe(
+                    `subscription($jobId: String!) {
+                        jobStatus(jobId: $jobId) {
+                            status progress errorMessage
+                            result {
+                                ... on TrajectoryReport {
+                                    reportId
+                                    datapoints {
+                                        timestamp xHours rawValue dataQuality
+                                        healthScore fittedValue zone
+                                        fPrime fDoublePrime trajectoryState timeToTransitionHours
+                                    }
+                                    fitMetadata {
+                                        coefficients t0Iso
+                                        zoneBoundaries { vulnerabilityMargin }
+                                    }
+                                }
+                            }
+                        }
+                    }`,
+                    { jobId },
+                    (payload) => {
+                        const job = payload.jobStatus;
+                        if (job.progress != null) {
+                            submitStatus = `Analysis running... ${Math.round(job.progress * 100)}%`;
+                        }
+                        if (job.status === "COMPLETED") {
+                            const r = job.result;
+                            // Transform camelCase GQL response to snake_case for localStorage
+                            const report = {
+                                report_id:  r.reportId,
+                                datapoints: r.datapoints.map(dp => ({
+                                    timestamp:                dp.timestamp,
+                                    x_hours:                  dp.xHours,
+                                    raw_value:                dp.rawValue,
+                                    data_quality:             dp.dataQuality,
+                                    health_score:             dp.healthScore,
+                                    fitted_value:             dp.fittedValue,
+                                    zone:                     dp.zone,
+                                    f_prime:                  dp.fPrime,
+                                    f_double_prime:           dp.fDoublePrime,
+                                    trajectory_state:         dp.trajectoryState,
+                                    time_to_transition_hours: dp.timeToTransitionHours,
+                                })),
+                                fit_metadata: {
+                                    coefficients:    r.fitMetadata.coefficients,
+                                    t0_iso:          r.fitMetadata.t0Iso,
+                                    zone_boundaries: { vulnerability_margin: r.fitMetadata.zoneBoundaries.vulnerabilityMargin },
+                                },
+                            };
+                            localStorage.setItem("timegraph_report", JSON.stringify(report));
+                            window.open("http://localhost:5173/#timegraph", "_blank");
+                            unsub();
+                            resolve();
+                        } else if (job.status === "FAILED") {
+                            unsub();
+                            reject(new Error(job.errorMessage ?? "Analysis failed"));
+                        }
+                    },
+                    (err) => { unsub?.(); reject(err); }
+                );
+            });
+
+            submitStatus = "";
         } catch (error) {
             console.error("Failed to submit timegraph request:", error);
+            submitStatus = `Error: ${error.message}`;
+        } finally {
+            submitting = false;
         }
     }
 
@@ -193,7 +301,10 @@
                 {#if zone_reference_note}<p id="zone_reference_note">{zone_reference_note}</p>{/if}
             </fieldset>
 
-            <button type="button" onclick={submitTimegraphRequest}>Request report</button>
+            <button type="button" onclick={submitTimegraphRequest} disabled={submitting}>
+                {submitting ? "Working..." : "Request report"}
+            </button>
+            {#if submitStatus}<p>{submitStatus}</p>{/if}
         </fieldset>
 </form>
 

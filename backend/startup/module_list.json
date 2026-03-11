@@ -53,9 +53,9 @@
       ]
     },
     {
-      "module_id": "pee_pee",
-      "module_name": "Poopoo",
-      "description": "djfklsdlfhkjlsabl keiofw",
+      "module_id": "new_test",
+      "module_name": "TESTEST",
+      "description": "This is just a test",
       "format": "json",
       "markers": []
     }

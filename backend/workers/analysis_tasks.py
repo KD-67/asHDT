@@ -119,7 +119,7 @@ async def run_trajectory_analysis(
             trajectory_result = result,
         )
 
-        await publish({
+        completed_payload = {
             "status":       "completed",
             "progress":     1.0,
             "report_id":    report_id,
@@ -129,7 +129,11 @@ async def run_trajectory_analysis(
             "marker_ids":   marker_ids,
             "requested_at": requested_at,
             "created_at":   created_at,
-        })
+        }
+        # Cache the completed payload for 1 hour so subscriptions that open
+        # after the pub/sub message has already fired can still retrieve it.
+        await redis.setex(f"job_result:{job_id}", 3600, json.dumps(completed_payload))
+        await publish(completed_payload)
 
         return {"report_id": report_id}
 

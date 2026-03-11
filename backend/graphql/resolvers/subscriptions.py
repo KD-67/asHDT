@@ -88,6 +88,15 @@ class Subscription:
         pubsub = conn.pubsub()
 
         try:
+            # Check if the worker already finished before the subscription opened.
+            # This handles the common race: fast jobs complete before the WebSocket
+            # handshake completes, causing the pub/sub message to be missed.
+            cached = await conn.get(f"job_result:{job_id}")
+            if cached:
+                data = json.loads(cached)
+                yield _parse_update(job_id, data)
+                return
+
             await pubsub.subscribe(f"job:{job_id}")
 
             deadline = asyncio.get_event_loop().time() + SUB_TIMEOUT

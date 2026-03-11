@@ -17,6 +17,7 @@ from uuid import uuid4
 
 import strawberry
 from strawberry.exceptions import GraphQLError
+from strawberry.file_uploads import Upload
 
 from backend.startup.database_logistics import (
     get_connection,
@@ -697,6 +698,78 @@ class Mutation:
             value        = input.value,
             unit         = input.unit,
             data_quality = input.data_quality,
+        )
+
+    @strawberry.mutation(
+        description=(
+            "Upload a JSON file to add a datapoint. The file must contain "
+            "measured_at (ISO 8601), value (number), and unit fields."
+        )
+    )
+    async def upload_datapoint(
+        self,
+        info: strawberry.types.Info[AppContext, None],
+        subject_id: str,
+        module_id:  str,
+        marker_id:  str,
+        file: Upload,
+    ) -> Datapoint:
+        ctx        = info.context
+        marker_dir = os.path.join(ctx.rawdata_root, subject_id, module_id, marker_id)
+        os.makedirs(marker_dir, exist_ok=True)
+        index_path = os.path.join(marker_dir, "index.json")
+
+        content = await file.read()
+        try:
+            dp = json.loads(content)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raise GraphQLError("Uploaded file is not valid JSON.")
+
+        for key in ("measured_at", "value", "unit"):
+            if key not in dp:
+                raise GraphQLError(f"Missing required field: {key}")
+
+        if os.path.isfile(index_path):
+            with open(index_path, "r", encoding="utf-8") as f:
+                index = json.load(f)
+        else:
+            index = {
+                "subject_id": subject_id,
+                "module_id":  module_id,
+                "marker_id":  marker_id,
+                "entries":    [],
+            }
+
+        safe_ts  = dp["measured_at"].replace(":", "-").replace("+", "").rstrip("Z") + "Z"
+        filename = f"{safe_ts}.json"
+
+        if any(e["file"] == filename for e in index["entries"]):
+            raise GraphQLError("A datapoint with this timestamp already exists.")
+
+        created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        with open(os.path.join(marker_dir, filename), "wb") as f:
+            f.write(content)
+
+        index["entries"].append({"measured_at": dp["measured_at"], "file": filename})
+        index["entries"].sort(key=lambda e: e["measured_at"])
+        _save_index(index_path, index)
+
+        table = _datapoint_table(subject_id, module_id, marker_id)
+        with get_connection(ctx.db_path) as conn:
+            _ensure_datapoint_table(conn, table)
+            conn.execute(
+                f'INSERT INTO "{table}" (measured_at, value, unit, data_quality, created_at) '
+                f'VALUES (?, ?, ?, ?, ?) ON CONFLICT(measured_at) DO UPDATE SET '
+                f'value=excluded.value, unit=excluded.unit, data_quality=excluded.data_quality',
+                (dp["measured_at"], dp["value"], dp.get("unit"), dp.get("data_quality", "good"), created_at),
+            )
+            conn.commit()
+
+        return Datapoint(
+            measured_at  = dp["measured_at"],
+            value        = float(dp["value"]),
+            unit         = dp.get("unit", ""),
+            data_quality = dp.get("data_quality", "good"),
         )
 
     @strawberry.mutation(description="Update an existing datapoint (identified by its original measured_at timestamp).")

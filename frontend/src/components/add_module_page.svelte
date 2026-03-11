@@ -16,8 +16,7 @@
       import LevelsIcon from "../assets/levels_icon.svg?raw";
 
       import { onMount } from "svelte";
-
-      const BASE_URL = "http://localhost:8000";
+      import { gql } from "../lib/gql.js";
 
       let mode = $state("view");
       let modules = $state([]);
@@ -60,10 +59,26 @@
       onMount(loadModules);
 
       async function loadModules() {
-          const res = await fetch(`${BASE_URL}/modules`);
-          if (res.ok) {
-              const data = await res.json();
-              modules = data.modules ?? [];
+          try {
+              const data = await gql(
+                  `query { modules { moduleId moduleName description markers {
+                      markerId markerName description unit volatilityClass
+                  } } }`
+              );
+              modules = data.modules.map(m => ({
+                  module_id:   m.moduleId,
+                  module_name: m.moduleName,
+                  description: m.description,
+                  markers:     m.markers.map(mk => ({
+                      marker_id:        mk.markerId,
+                      marker_name:      mk.markerName,
+                      description:      mk.description,
+                      unit:             mk.unit,
+                      volatility_class: mk.volatilityClass,
+                  })),
+              }));
+          } catch (e) {
+              setStatus("Failed to load modules.", false);
           }
       }
 
@@ -76,62 +91,59 @@
 
       async function handleCreateModule() {
           if (!new_module_id.trim()) { setStatus("Module ID is required.", false); return; }
-          const res = await fetch(`${BASE_URL}/modules`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ module_id: new_module_id.trim(), module_name: new_module_name.trim(), description:
-  new_module_description.trim() }),
-          });
-          if (res.ok) {
+          try {
+              await gql(
+                  `mutation($input: ModuleInput!) { createModule(input: $input) { moduleId } }`,
+                  { input: { moduleId: new_module_id.trim(), moduleName: new_module_name.trim(), description: new_module_description.trim() } }
+              );
               setStatus(`Module "${new_module_id}" created.`);
               new_module_id = ""; new_module_description = "";
               mode = "view";
               await loadModules();
-          } else {
-              const err = await res.json();
-              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          } catch (e) {
+              setStatus(`Error: ${e.message}`, false);
           }
       }
 
-  function toggleEditModule(mod) {
-    if (editingModule === mod.module_id) {
-          editingModule = "";
-          editModuleName = "";
-          editModuleDescription = "";
-    } else {
-          editingModule = mod.module_id;
-          editModuleName = mod.module_name ?? "";
-          editModuleDescription = mod.description;
+      function toggleEditModule(mod) {
+          if (editingModule === mod.module_id) {
+              editingModule = "";
+              editModuleName = "";
+              editModuleDescription = "";
+          } else {
+              editingModule = mod.module_id;
+              editModuleName = mod.module_name ?? "";
+              editModuleDescription = mod.description;
+          }
+          statusMessage = "";
       }
-      statusMessage = "";
-  }
 
       async function handleEditModule(module_id) {
-          const res = await fetch(`${BASE_URL}/modules/${module_id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ module_name: editModuleName, description: editModuleDescription }),
-          });
-          if (res.ok) {
+          try {
+              await gql(
+                  `mutation($id: String!, $input: ModuleUpdateInput!) { updateModule(moduleId: $id, input: $input) { moduleId } }`,
+                  { id: module_id, input: { moduleName: editModuleName, description: editModuleDescription } }
+              );
               setStatus(`Module "${module_id}" updated.`);
               editingModule = "";
               await loadModules();
-          } else {
-              const err = await res.json();
-              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          } catch (e) {
+              setStatus(`Error: ${e.message}`, false);
           }
       }
 
       async function handleDeleteModule(module_id) {
           if (!confirm(`Delete module "${module_id}"? This cannot be undone.`)) return;
-          const res = await fetch(`${BASE_URL}/modules/${module_id}`, { method: "DELETE" });
-          if (res.ok) {
+          try {
+              await gql(
+                  `mutation($id: String!) { deleteModule(moduleId: $id) }`,
+                  { id: module_id }
+              );
               setStatus(`Module "${module_id}" deleted.`);
               if (expandedModule === module_id) collapseModule();
               await loadModules();
-          } else {
-              const err = await res.json();
-              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          } catch (e) {
+              setStatus(`Error: ${e.message}`, false);
           }
       }
 
@@ -144,34 +156,35 @@
       }
 
       async function handleAddMarker(module_id) {
-          const hMin = parseFloat(newMarker.healthy_min);
-          const hMax = parseFloat(newMarker.healthy_max);
+          const hMin    = parseFloat(newMarker.healthy_min);
+          const hMax    = parseFloat(newMarker.healthy_max);
           const vMargin = parseFloat(newMarker.vulnerability_margin);
           if (isNaN(hMin) || isNaN(hMax) || isNaN(vMargin)) {
               setStatus("Healthy min, max, and vulnerability margin must be numbers.", false);
               return;
           }
-          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                  marker_id: newMarker.marker_id.trim(),
-                  marker_name: newMarker.marker_name.trim(),
-                  description: newMarker.description.trim(),
-                  unit: newMarker.unit.trim(),
-                  volatility_class: newMarker.volatility_class.trim(),
-                  healthy_min: hMin,
-                  healthy_max: hMax,
-                  vulnerability_margin: vMargin,
-              }),
-          });
-          if (res.ok) {
+          try {
+              await gql(
+                  `mutation($mo: String!, $input: MarkerInput!) { createMarker(moduleId: $mo, input: $input) { markerId } }`,
+                  {
+                      mo: module_id,
+                      input: {
+                          markerId:            newMarker.marker_id.trim(),
+                          markerName:          newMarker.marker_name.trim(),
+                          description:         newMarker.description.trim(),
+                          unit:                newMarker.unit.trim(),
+                          volatilityClass:     newMarker.volatility_class.trim(),
+                          healthyMin:          hMin,
+                          healthyMax:          hMax,
+                          vulnerabilityMargin: vMargin,
+                      },
+                  }
+              );
               setStatus(`Marker "${newMarker.marker_id}" added to "${module_id}".`);
               addingMarkerTo = "";
               await loadModules();
-          } else {
-              const err = await res.json();
-              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          } catch (e) {
+              setStatus(`Error: ${e.message}`, false);
           }
       }
 
@@ -187,26 +200,27 @@
       }
 
       async function handleEditMarker(module_id, marker_id) {
-          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                  marker_name: editMarker.marker_name,
-                  description: editMarker.description,
-                  unit: editMarker.unit,
-                  volatility_class: editMarker.volatility_class,
-                  healthy_min: parseFloat(editMarker.healthy_min),
-                  healthy_max: parseFloat(editMarker.healthy_max),
-                  vulnerability_margin: parseFloat(editMarker.vulnerability_margin),
-              }),
-          });
-          if (res.ok) {
+          try {
+              await gql(
+                  `mutation($mo: String!, $ma: String!, $input: MarkerUpdateInput!) { updateMarker(moduleId: $mo, markerId: $ma, input: $input) { markerId } }`,
+                  {
+                      mo: module_id, ma: marker_id,
+                      input: {
+                          markerName:          editMarker.marker_name,
+                          description:         editMarker.description,
+                          unit:                editMarker.unit,
+                          volatilityClass:     editMarker.volatility_class,
+                          healthyMin:          parseFloat(editMarker.healthy_min),
+                          healthyMax:          parseFloat(editMarker.healthy_max),
+                          vulnerabilityMargin: parseFloat(editMarker.vulnerability_margin),
+                      },
+                  }
+              );
               setStatus(`Marker "${marker_id}" updated.`);
               editingMarker = null;
               await loadModules();
-          } else {
-              const err = await res.json();
-              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          } catch (e) {
+              setStatus(`Error: ${e.message}`, false);
           }
       }
 
@@ -227,81 +241,103 @@
       }
 
       async function loadZoneRefs(module_id, marker_id) {
-          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}/zone-references`);
-          if (res.ok) {
-              zoneRefRows = await res.json();
-          } else {
+          try {
+              const data = await gql(
+                  `query($mo: String!, $ma: String!) {
+                      demographicZones(moduleId: $mo, markerId: $ma) {
+                          sex age healthyMin healthyMax vulnerabilityMargin
+                      }
+                  }`,
+                  { mo: module_id, ma: marker_id }
+              );
+              zoneRefRows = data.demographicZones.map(r => ({
+                  sex:                  r.sex,
+                  age:                  r.age,
+                  healthy_min:          r.healthyMin,
+                  healthy_max:          r.healthyMax,
+                  vulnerability_margin: r.vulnerabilityMargin,
+              }));
+          } catch (e) {
               setStatus("Failed to load zone references.", false);
           }
       }
 
       async function handleAddDemoZone(module_id, marker_id) {
-          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}/zone-references`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                  sex: newDemoZone.sex,
-                  age: parseInt(newDemoZone.age),
-                  healthy_min: parseFloat(newDemoZone.healthy_min),
-                  healthy_max: parseFloat(newDemoZone.healthy_max),
-                  vulnerability_margin: parseFloat(newDemoZone.vulnerability_margin),
-              }),
-          });
-          if (res.ok) {
+          try {
+              await gql(
+                  `mutation($mo: String!, $ma: String!, $input: DemographicZoneInput!) {
+                      addDemographicZone(moduleId: $mo, markerId: $ma, input: $input) { sex age }
+                  }`,
+                  {
+                      mo: module_id, ma: marker_id,
+                      input: {
+                          sex:                 newDemoZone.sex,
+                          age:                 parseInt(newDemoZone.age),
+                          healthyMin:          parseFloat(newDemoZone.healthy_min),
+                          healthyMax:          parseFloat(newDemoZone.healthy_max),
+                          vulnerabilityMargin: parseFloat(newDemoZone.vulnerability_margin),
+                      },
+                  }
+              );
               setStatus("Demographic zone row added.");
               addingDemoZone = false;
               newDemoZone = { sex: "M", age: "", healthy_min: "", healthy_max: "", vulnerability_margin: "" };
               await loadZoneRefs(module_id, marker_id);
-          } else {
-              const err = await res.json();
-              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          } catch (e) {
+              setStatus(`Error: ${e.message}`, false);
           }
       }
 
       async function handleEditDemoZone(module_id, marker_id, sex, age) {
-          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}/zone-references/${sex}/${age}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                  healthy_min: parseFloat(editDemoZone.healthy_min),
-                  healthy_max: parseFloat(editDemoZone.healthy_max),
-                  vulnerability_margin: parseFloat(editDemoZone.vulnerability_margin),
-              }),
-          });
-          if (res.ok) {
+          try {
+              await gql(
+                  `mutation($mo: String!, $ma: String!, $sex: String!, $age: Int!, $input: ZoneBoundaryInput!) {
+                      updateDemographicZone(moduleId: $mo, markerId: $ma, sex: $sex, age: $age, input: $input) { sex age }
+                  }`,
+                  {
+                      mo: module_id, ma: marker_id, sex, age,
+                      input: {
+                          healthyMin:          parseFloat(editDemoZone.healthy_min),
+                          healthyMax:          parseFloat(editDemoZone.healthy_max),
+                          vulnerabilityMargin: parseFloat(editDemoZone.vulnerability_margin),
+                      },
+                  }
+              );
               setStatus("Demographic zone row updated.");
               editingDemoZone = null;
               await loadZoneRefs(module_id, marker_id);
-          } else {
-              const err = await res.json();
-              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          } catch (e) {
+              setStatus(`Error: ${e.message}`, false);
           }
       }
 
       async function handleDeleteDemoZone(module_id, marker_id, sex, age) {
           if (!confirm(`Delete zone ref ${sex}/${age}?`)) return;
-          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}/zone-references/${sex}/${age}`, {
-              method: "DELETE",
-          });
-          if (res.ok) {
+          try {
+              await gql(
+                  `mutation($mo: String!, $ma: String!, $sex: String!, $age: Int!) {
+                      deleteDemographicZone(moduleId: $mo, markerId: $ma, sex: $sex, age: $age)
+                  }`,
+                  { mo: module_id, ma: marker_id, sex, age }
+              );
               setStatus("Demographic zone row deleted.");
               await loadZoneRefs(module_id, marker_id);
-          } else {
-              const err = await res.json();
-              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          } catch (e) {
+              setStatus(`Error: ${e.message}`, false);
           }
       }
 
       async function handleDeleteMarker(module_id, marker_id) {
           if (!confirm(`Delete marker "${marker_id}" from "${module_id}"?`)) return;
-          const res = await fetch(`${BASE_URL}/modules/${module_id}/markers/${marker_id}`, { method:        
-  "DELETE" });
-          if (res.ok) {
+          try {
+              await gql(
+                  `mutation($mo: String!, $ma: String!) { deleteMarker(moduleId: $mo, markerId: $ma) }`,
+                  { mo: module_id, ma: marker_id }
+              );
               setStatus(`Marker "${marker_id}" deleted.`);
               await loadModules();
-          } else {
-              const err = await res.json();
-              setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+          } catch (e) {
+              setStatus(`Error: ${e.message}`, false);
           }
       }
 

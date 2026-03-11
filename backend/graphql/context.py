@@ -3,16 +3,14 @@
 # pass through here — both FastAPI Request and WebSocket expose .app.state.
 
 from __future__ import annotations
-from typing import Optional
 from strawberry.fastapi import BaseContext
-from fastapi import Request
 
 
 class AppContext(BaseContext):
     """
     Carries per-request state into every resolver.
-    DataLoaders are instantiated lazily so they are scoped per request
-    (important: DataLoaders batch within a single request, not across requests).
+    Works for both HTTP (queries/mutations) and WebSocket (subscriptions) —
+    both expose .app.state via the same interface.
     """
 
     @property
@@ -45,7 +43,5 @@ class AppContext(BaseContext):
         return getattr(self.request.app.state, "redis_pool", None)
 
 
-async def get_context(request: Request) -> AppContext:
-    ctx = AppContext()
-    ctx.request = request
-    return ctx
+async def get_context() -> AppContext:
+    return AppContext()

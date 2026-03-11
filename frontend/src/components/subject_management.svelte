@@ -16,8 +16,7 @@
     import CancelIcon from "../assets/cancel_icon.svg?raw";
 
     import { onMount } from "svelte";
-
-    const BASE_URL = "http://localhost:8000";
+    import { gql, gqlUpload } from "../lib/gql.js";
 
     // Mode: "view" or "add"
     let mode = $state("view");
@@ -72,15 +71,16 @@
     let statusOk = $state(true);
 
     onMount(async () => {
-        const [subRes, modRes] = await Promise.all([
-            fetch(`${BASE_URL}/subjects`),
-            fetch(`${BASE_URL}/modules`),
+        const [subData, modData] = await Promise.all([
+            gql(`query { subjects { subjectId firstName lastName sex dob email phone notes createdAt } }`),
+            gql(`query { modules { moduleId moduleName markers { markerId markerName } } }`),
         ]);
-        if (subRes.ok) await loadSubjectsFromIds(await subRes.json());
-        if (modRes.ok) {
-            const modData = await modRes.json();
-            modules = modData.modules ?? [];
-        }
+        subjects = subData.subjects.map(remapSubject);
+        modules  = modData.modules.map(m => ({
+            module_id:   m.moduleId,
+            module_name: m.moduleName,
+            markers:     m.markers.map(mk => ({ marker_id: mk.markerId, marker_name: mk.markerName })),
+        }));
     });
 
     let availableMarkers = $derived(
@@ -91,6 +91,20 @@
         newDsModule;
         newDsMarker = "";
     });
+
+    function remapSubject(s) {
+        return {
+            subject_id: s.subjectId,
+            first_name: s.firstName,
+            last_name:  s.lastName,
+            sex:        s.sex,
+            dob:        s.dob,
+            email:      s.email,
+            phone:      s.phone,
+            notes:      s.notes,
+            created_at: s.createdAt,
+        };
+    }
 
     function formatDate(iso) {
         if (!iso) return '—';
@@ -126,86 +140,68 @@
         statusMessage = "";
     }
 
-    async function loadSubjectsFromIds(ids) {
-        const subjectObjects = [];
-        for (const id of ids) {
-            const profileRes = await fetch(`${BASE_URL}/subjects/${id}/profile`);
-            if (profileRes.ok) {
-                const profile = await profileRes.json();
-                subjectObjects.push({
-                    subject_id: id,
-                    first_name: profile.first_name ?? "",
-                    last_name: profile.last_name ?? "",
-                    sex: profile.sex ?? "",
-                    dob: profile.dob ?? "",
-                    email: profile.email ?? "",
-                    phone: profile.phone ?? "",
-                    notes: profile.notes ?? "",
-                    created_at: profile.created_at ?? "",
-                });
-            }
-        }
-        subjects = subjectObjects;
-    }
-
     async function loadSubjects() {
-        const res = await fetch(`${BASE_URL}/subjects`);
-        if (!res.ok) return;
-        await loadSubjectsFromIds(await res.json());
+        try {
+            const data = await gql(`query { subjects { subjectId firstName lastName sex dob email phone notes createdAt } }`);
+            subjects = data.subjects.map(remapSubject);
+        } catch (e) {
+            setStatus("Failed to load subjects.", false);
+        }
     }
 
     async function handleEditSubject(subject_id) {
-        const res = await fetch(`${BASE_URL}/subjects/${subject_id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                first_name: editSubject.first_name,
-                last_name: editSubject.last_name,
-                sex: editSubject.sex,
-                dob: editSubject.dob,
-                email: editSubject.email,
-                phone: editSubject.phone,
-                notes: editSubject.notes,
-            }),
-        });
-        if (res.ok) {
+        try {
+            await gql(
+                `mutation($id: String!, $input: SubjectInput!) { updateSubject(subjectId: $id, input: $input) { subjectId } }`,
+                {
+                    id: subject_id,
+                    input: {
+                        firstName: editSubject.first_name,
+                        lastName:  editSubject.last_name,
+                        sex:       editSubject.sex,
+                        dob:       editSubject.dob,
+                        email:     editSubject.email,
+                        phone:     editSubject.phone,
+                        notes:     editSubject.notes,
+                    },
+                }
+            );
             setStatus(`Subject "${subject_id}" updated.`);
             editingSubject = null;
             await loadSubjects();
-        } else {
-            const err = await res.json();
-            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
         }
     }
 
     async function handleDeleteSubject(subject_id) {
         if (!confirm(`Delete ${subject_id}? Their data will be moved to deleted_subjects/.`)) return;
-        const res = await fetch(`${BASE_URL}/subjects/${subject_id}`, { method: "DELETE" });
-        if (res.ok) {
+        try {
+            await gql(
+                `mutation($id: String!) { deleteSubject(subjectId: $id) }`,
+                { id: subject_id }
+            );
             setStatus(`Subject "${subject_id}" deleted.`);
+            collapseSubject();
             await loadSubjects();
-        } else {
-            const err = await res.json();
-            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
         }
     }
 
     async function handleCreate() {
-        const res = await fetch(`${BASE_URL}/subjects`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ first_name, last_name, sex, dob, email, phone, notes }),
-        });
-        if (res.ok) {
-            const data = await res.json();
-            setStatus(`Subject created: ${data.subject_id}`);
+        try {
+            const data = await gql(
+                `mutation($input: SubjectInput!) { createSubject(input: $input) { subjectId } }`,
+                { input: { firstName: first_name, lastName: last_name, sex, dob, email, phone, notes } }
+            );
+            setStatus(`Subject created: ${data.createSubject.subjectId}`);
             first_name = ""; last_name = ""; sex = ""; dob = "";
             email = ""; phone = ""; notes = "";
             mode = "view";
             await loadSubjects();
-        } else {
-            const err = await res.json();
-            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
         }
     }
 
@@ -216,9 +212,19 @@
         selectedDataset = null;
         datapoints = [];
         statusMessage = "";
-        const res = await fetch(`${BASE_URL}/subjects/${subject_id}/datasets`);
-        if (res.ok) datasets = await res.json();
-        else setStatus("Failed to load datasets.", false);
+        try {
+            const data = await gql(
+                `query($s: String!) { datasets(subjectId: $s) { moduleId markerId entryCount } }`,
+                { s: subject_id }
+            );
+            datasets = data.datasets.map(d => ({
+                module_id:   d.moduleId,
+                marker_id:   d.markerId,
+                entry_count: d.entryCount,
+            }));
+        } catch (e) {
+            setStatus("Failed to load datasets.", false);
+        }
     }
 
     async function loadDatapoints(module_id, marker_id) {
@@ -227,14 +233,24 @@
         editingDp = null;
         addFormOpen = false;
         statusMessage = "";
-        const res = await fetch(`${BASE_URL}/subjects/${datasetsSubject}/datasets/${module_id}/${marker_id}`);
-        if (res.ok) {
-            datapoints = await res.json();
+        try {
+            const data = await gql(
+                `query($s: String!, $mo: String!, $ma: String!) {
+                    datapoints(subjectId: $s, moduleId: $mo, markerId: $ma) {
+                        measuredAt value unit dataQuality
+                    }
+                }`,
+                { s: datasetsSubject, mo: module_id, ma: marker_id }
+            );
+            datapoints = data.datapoints.map(dp => ({
+                measured_at:  dp.measuredAt,
+                value:        dp.value,
+                unit:         dp.unit,
+                data_quality: dp.dataQuality,
+            }));
             if (datapoints.length > 0) dpUnit = datapoints[0].unit ?? "";
-        } else if (res.status === 404) {
-            setStatus("No datapoints found for this dataset.", true);
-        } else {
-            setStatus(`Failed to load datapoints (${res.status}).`, false);
+        } catch (e) {
+            setStatus(`Failed to load datapoints.`, false);
         }
     }
 
@@ -248,69 +264,70 @@
     }
 
     function handleStartEdit(dp) {
-        editingDp = dp;
-        editTs = dp.measured_at.slice(0, 16);
-        editValue = String(dp.value);
-        editUnit = dp.unit ?? "";
+        editingDp   = dp;
+        editTs      = dp.measured_at.slice(0, 16);
+        editValue   = String(dp.value);
+        editUnit    = dp.unit ?? "";
         editQuality = dp.data_quality ?? "good";
         statusMessage = "";
     }
 
     async function handleEditSave() {
-        if (!editTs) { setStatus("Timestamp is required.", false); return; }
+        if (!editTs)        { setStatus("Timestamp is required.", false); return; }
         if (editValue === "") { setStatus("Value is required.", false); return; }
         const mid = selectedDataset.module_id;
         const mkid = selectedDataset.marker_id;
-        const res = await fetch(
-            `${BASE_URL}/subjects/${datasetsSubject}/datasets/${mid}/${mkid}/${encodeURIComponent(editingDp.measured_at)}`,
-            {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    measured_at: new Date(editTs).toISOString(),
-                    value: parseFloat(editValue),
-                    unit: editUnit,
-                    data_quality: editQuality,
-                }),
-            }
-        );
-        if (res.ok) {
+        try {
+            await gql(
+                `mutation($s: String!, $mo: String!, $ma: String!, $orig: String!, $input: DatapointInput!) {
+                    updateDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, originalMeasuredAt: $orig, input: $input) { measuredAt }
+                }`,
+                {
+                    s: datasetsSubject, mo: mid, ma: mkid,
+                    orig: editingDp.measured_at,
+                    input: {
+                        measuredAt:  new Date(editTs).toISOString(),
+                        value:       parseFloat(editValue),
+                        unit:        editUnit,
+                        dataQuality: editQuality,
+                    },
+                }
+            );
             setStatus("Datapoint updated.");
             editingDp = null;
             await loadDatasets(datasetsSubject);
             await loadDatapoints(mid, mkid);
-        } else {
-            const err = await res.json();
-            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
         }
     }
 
     async function handleAddForm() {
-        if (!dpTimestamp) { setStatus("Timestamp is required.", false); return; }
+        if (!dpTimestamp)   { setStatus("Timestamp is required.", false); return; }
         if (dpValue === "") { setStatus("Value is required.", false); return; }
         const mid = selectedDataset.module_id;
         const mkid = selectedDataset.marker_id;
-        const res = await fetch(
-            `${BASE_URL}/subjects/${datasetsSubject}/datasets/${mid}/${mkid}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    measured_at: new Date(dpTimestamp).toISOString(),
-                    value: parseFloat(dpValue),
-                    unit: dpUnit,
-                    data_quality: dpQuality,
-                }),
-            }
-        );
-        if (res.ok) {
+        try {
+            await gql(
+                `mutation($s: String!, $mo: String!, $ma: String!, $input: DatapointInput!) {
+                    addDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, input: $input) { measuredAt }
+                }`,
+                {
+                    s: datasetsSubject, mo: mid, ma: mkid,
+                    input: {
+                        measuredAt:  new Date(dpTimestamp).toISOString(),
+                        value:       parseFloat(dpValue),
+                        unit:        dpUnit,
+                        dataQuality: dpQuality,
+                    },
+                }
+            );
             setStatus("Datapoint added.");
             dpTimestamp = ""; dpValue = ""; dpQuality = "good";
             await loadDatasets(datasetsSubject);
             await loadDatapoints(mid, mkid);
-        } else {
-            const err = await res.json();
-            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
         }
     }
 
@@ -318,20 +335,21 @@
         if (!uploadFile) { setStatus("Select a file first.", false); return; }
         const mid = selectedDataset.module_id;
         const mkid = selectedDataset.marker_id;
-        const form = new FormData();
-        form.append("file", uploadFile);
-        const res = await fetch(
-            `${BASE_URL}/subjects/${datasetsSubject}/datasets/${mid}/${mkid}/upload`,
-            { method: "POST", body: form }
-        );
-        if (res.ok) {
+        try {
+            await gqlUpload(
+                `mutation($s: String!, $mo: String!, $ma: String!, $file: Upload!) {
+                    uploadDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, file: $file) { measuredAt }
+                }`,
+                { s: datasetsSubject, mo: mid, ma: mkid },
+                "file",
+                uploadFile
+            );
             setStatus("File uploaded.");
             uploadFile = null;
             await loadDatasets(datasetsSubject);
             await loadDatapoints(mid, mkid);
-        } else {
-            const err = await res.json();
-            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
         }
     }
 
@@ -339,34 +357,36 @@
         if (!confirm(`Delete datapoint at ${measured_at}?`)) return;
         const mid = selectedDataset.module_id;
         const mkid = selectedDataset.marker_id;
-        const res = await fetch(
-            `${BASE_URL}/subjects/${datasetsSubject}/datasets/${mid}/${mkid}/${encodeURIComponent(measured_at)}`,
-            { method: "DELETE" }
-        );
-        if (res.ok) {
+        try {
+            await gql(
+                `mutation($s: String!, $mo: String!, $ma: String!, $ts: String!) {
+                    deleteDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, measuredAt: $ts)
+                }`,
+                { s: datasetsSubject, mo: mid, ma: mkid, ts: measured_at }
+            );
             setStatus("Datapoint deleted.");
             await loadDatasets(datasetsSubject);
             await loadDatapoints(mid, mkid);
-        } else {
-            const err = await res.json();
-            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
         }
     }
 
     async function handleDeleteDataset(module_id, marker_id) {
         if (!confirm(`Delete entire dataset ${module_id}/${marker_id}? This cannot be undone.`)) return;
-        const res = await fetch(
-            `${BASE_URL}/subjects/${datasetsSubject}/datasets/${module_id}/${marker_id}`,
-            { method: "DELETE" }
-        );
-        if (res.ok) {
+        try {
+            await gql(
+                `mutation($s: String!, $mo: String!, $ma: String!) {
+                    deleteDataset(subjectId: $s, moduleId: $mo, markerId: $ma)
+                }`,
+                { s: datasetsSubject, mo: module_id, ma: marker_id }
+            );
             setStatus(`Dataset ${module_id}/${marker_id} deleted.`);
             selectedDataset = null;
             datapoints = [];
             await loadDatasets(datasetsSubject);
-        } else {
-            const err = await res.json();
-            setStatus(`Error: ${err.detail ?? res.statusText}`, false);
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
         }
     }
 </script>
