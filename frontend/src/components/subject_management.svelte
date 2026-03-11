@@ -404,6 +404,9 @@
         </div>
 
         <div id="viewbox">
+            <div class="main_header_container">
+                <h2>Subjects</h2>
+            </div>
             <!-- VIEW MODE: Subject cards -->
             {#if mode === "view"}
                 {#if subjects.length === 0}

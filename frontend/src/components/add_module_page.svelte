@@ -375,6 +375,9 @@
 
 
             <div id="viewbox">
+                <div class="main_header_container">
+                    <h2>Modules</h2>
+                </div>
           <!-- VIEW / EDIT MODE -->
           {#if mode === "view"}
               {#if modules.length === 0}

@@ -32,8 +32,8 @@ import DatasetManagement from "./dataset_management.svelte";
     <div class="subpage_container" id="dataset_btn_container">
         <a class="subpage_button" href="http://localhost:5173/#dataset_management">Dataset Management</a>
         <ul>
-            <li>Lorem</li>
-            <li>Ipsum</li>
+            <li>Markerset templates</li>
+            <li>Analysis method optimization</li>
         </ul>
     </div>
        
