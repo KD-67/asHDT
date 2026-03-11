@@ -1,12 +1,19 @@
 <script>
     import { gql, subscribe } from "../lib/gql.js";
 
+    let textColor = '#422800';
+    let borderColor = '#422800';
+    let cardColor = '#d0e8ff';
+    let cardSectionColor = 'aliceblue';
+    let addBtnColor = 'rgb(114, 231, 114)';
+
     let loading = $state(false);
     let submitting = $state(false);
     let submitStatus = $state("");
 
     let subjects = $state([]);
     let subject_profile = $state({});
+    let profile_visible = $state(false);
     let subject_names = $state({});
     let modules = $state([]);
     let markers = $state([]);
@@ -219,122 +226,273 @@
     loadModules();
 </script>
 
-<h2>Report Request Form</h2>
+<main style="--textColor: {textColor}; --borderColor: {borderColor}">
+    <div id="main_container">
 
-<form id="generate_report_form">
-        <fieldset id="generate_timegraph_from_existing_data" class="input_form" style='background:lightgreen'>
-        <legend style="font-size: large;">Select existing user</legend>
-            <fieldset id="subject_selector">
-                <legend>Select Subject</legend>
-                <select bind:value={selected_subject}>
-                    {#each subjects as subject}
-                        <option value={subject}>{subject_names[subject] ?? subject}</option>
-                    {/each}
-                </select>
-                <p>(Selected: {selected_subject})</p>
-                <button type='button' onclick={() => loadSubjectProfile(selected_subject)}>Show selected user profile</button>
-            </fieldset>
+        <h2 id="form_header">Report Request Form</h2>
 
-            <fieldset id="module_selector">
-                <legend>Select Module</legend>
-                <select bind:value={selected_module} disabled={!selected_subject} onchange={onModuleChange}>
-                    <option value="">-- select module --</option>
-                    {#each modules as module}
-                        <option value={module.module_id}>{module.module_name || module.module_id}</option>
-                    {/each}
-                </select>
-                <p>(Selected: {selected_module})</p>
-            </fieldset>
+        <div id="report_form">
 
-            <fieldset id="marker_selector">
-                <legend>Select Marker</legend>
-                <select bind:value={selected_marker} disabled={!selected_module} onchange={loadZoneReference}>
-                    <option value="">-- select marker --</option>
-                    {#each markers as marker}
-                        <option value={marker.marker_id}>{marker.marker_name || marker.marker_id}</option>
-                    {/each}
-                </select>
-                <p>(Selected: {selected_marker})</p>
-            </fieldset>
+            <div id="row_selectors">
+                <label>Subject
+                    <select bind:value={selected_subject}>
+                        {#each subjects as subject}
+                            <option value={subject}>{subject_names[subject] ?? subject}</option>
+                        {/each}
+                    </select>
+                </label>
 
-            <fieldset id="timeframe_selector">
-                <legend>Select timeframe</legend>
-                <div>
-                    <label for="starttime">From:</label>
-                    <input id="starttime" type="datetime-local" bind:value={selected_start_time} required />
-                    <p>(Selected: {selected_start_time})</p>
-                </div>
-                <div>
-                    <label for="endtime">To:</label>
-                    <input id="endtime" type="datetime-local" bind:value={selected_end_time} required />
-                    <p>(Selected: {selected_end_time})</p>
-                </div>
-            </fieldset>
+                <label>Module
+                    <select bind:value={selected_module} disabled={!selected_subject} onchange={onModuleChange}>
+                        <option value="">-- select module --</option>
+                        {#each modules as module}
+                            <option value={module.module_id}>{module.module_name || module.module_id}</option>
+                        {/each}
+                    </select>
+                </label>
 
-            <fieldset name="polynomial_degree_selector">
-                <legend>Select polynomial degree</legend>
-                <label for="polynomial_degree_selector"></label>
-                <input id="polynomial_degree_selector" type="range" min="1" max="5" step="1" bind:value={selected_polynomial_degree}/>
-                <p>(Selected: {selected_polynomial_degree})</p>
-            </fieldset>
+                <label>Marker
+                    <select bind:value={selected_marker} disabled={!selected_module} onchange={loadZoneReference}>
+                        <option value="">-- select marker --</option>
+                        {#each markers as marker}
+                            <option value={marker.marker_id}>{marker.marker_name || marker.marker_id}</option>
+                        {/each}
+                    </select>
+                </label>
+            </div>
 
-            <fieldset class="zone_boundaries_input">
-                <legend>Select zone boundaries</legend>
+            <div id="row_timeframe">
+                <label>From
+                    <input type="datetime-local" bind:value={selected_start_time} required />
+                </label>
+                <label>To
+                    <input type="datetime-local" bind:value={selected_end_time} required />
+                </label>
+                <label>Polynomial Degree — {selected_polynomial_degree}
+                    <input type="range" min="1" max="5" step="1" bind:value={selected_polynomial_degree} />
+                </label>
+            </div>
 
-                <fieldset>
-                    <label for="healthy_min_selector">Healthy minimum:</label>
-                    <input id="healthy_min_selector" type="number" bind:value={selected_healthy_min} required/>
-                    <p>(Selected: {selected_healthy_min})</p>
-                </fieldset>
-
-                <fieldset>
-                    <label for="healthy_max_selector">Healthy maximum:</label>
-                    <input id="healthy_max_selector" type="number" bind:value={selected_healthy_max} required/>
-                    <p>(Selected: {selected_healthy_max})</p>
-                </fieldset>
-
-                <fieldset>
-                    <label for="vulnerability_margin_selector">Vulnerability margin:</label>
-                    <input id="vulnerability_margin_selector" type="number" bind:value={selected_vulnerability_margin} required/>
-                    <p>(Selected: {selected_vulnerability_margin})</p>
-                </fieldset>
+            <div id="row_zones">
+                <span id="zone_label">Zone Boundaries</span>
                 {#if zone_reference_note}<p id="zone_reference_note">{zone_reference_note}</p>{/if}
-            </fieldset>
+                <label>Healthy minimum
+                    <input type="number" bind:value={selected_healthy_min} required />
+                </label>
+                <label>Healthy maximum
+                    <input type="number" bind:value={selected_healthy_max} required />
+                </label>
+                <label>Vulnerability margin
+                    <input type="number" bind:value={selected_vulnerability_margin} required />
+                </label>
+            </div>
 
-            <button type="button" onclick={submitTimegraphRequest} disabled={submitting}>
-                {submitting ? "Working..." : "Request report"}
-            </button>
-            {#if submitStatus}<p>{submitStatus}</p>{/if}
-        </fieldset>
-</form>
+            <div id="row_submit">
+                <button type="button" onclick={async () => {
+                    if (profile_visible) { profile_visible = false; return; }
+                    if (!selected_subject || selected_subject === "nothing") return;
+                    await loadSubjectProfile(selected_subject);
+                    profile_visible = true;
+                }}>{profile_visible ? "Hide profile" : "Show profile"}</button>
+                <button style="--addBtnColor: {addBtnColor}" class="add_btn" type="button" onclick={submitTimegraphRequest} disabled={submitting}>
+                    {submitting ? "Working..." : "Request report"}
+                </button>
+                {#if submitStatus}<p id="submit_status">{submitStatus}</p>{/if}
+            </div>
 
-<br>
+        </div>
 
-<div style="border: 1px solid black; background:lightyellow">
-  <h4>Selected profile:</h4>
-    {JSON.stringify(subject_profile)}
- </div>  
+        {#if profile_visible && Object.keys(subject_profile).length > 0}
+        <div id="profile_display">
+            <h4>Selected profile</h4>
+            {#each Object.entries(subject_profile) as [key, value]}
+                <div class="profile_row">
+                    <span class="profile_key">{key.replace(/_/g, ' ')}</span>
+                    <span class="profile_val">{value ?? '—'}</span>
+                </div>
+            {/each}
+        </div>
+        {/if}
+
+    </div>
+</main>
 
 <style>
-    .input_form {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1rem;
-        align-items: start;
+
+    * {
+        color: var(--textColor);
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
     }
 
-    .zone_boundaries_input {
+    /* BUTTONS */
+
+    button {
+        border-radius: 30px;
+        margin: 0.75rem 0.25rem;
+        padding: 0.25rem 0.75rem;
+        box-shadow: 5px 5px 0px var(--borderColor);
+        cursor: pointer;
+        font-size: 14px;
+        border: 1px solid var(--borderColor);
+        background-color: #fbeee0;
+    }
+
+    button:hover {
+        transform: scale(102%);
+        font-weight: 550;
+        border: 2px solid var(--borderColor);
+    }
+
+    button:active {
+        box-shadow: var(--borderColor) 2px 2px 0 0;
+        transform: translate(2px, 2px);
+    }
+
+    button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .add_btn {
+        background-color: var(--addBtnColor);
+    }
+
+    /* LAYOUT */
+
+    #main_container {
+        border: 1px solid var(--borderColor);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px;
+    }
+
+    #form_header {
+        padding: 0.5rem 0;
+    }
+
+    #report_form {
+        border: 2px solid var(--borderColor);
+        border-radius: 0.5rem;
+        background-color: #d0e8ff;
+        box-shadow: 5px 5px 0px var(--borderColor);
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    #report_form label {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1rem;
-        align-items: start;
+        font-size: 0.85em;
+        gap: 4px;
+    }
+
+    #report_form input,
+    #report_form select {
+        padding: 5px;
+        border: 1px solid var(--borderColor);
+        border-radius: 3px;
+        background: white;
+        font-size: 0.9em;
+        width: 100%;
     }
 
     input:focus, select:focus {
         background-color: aqua;
+        outline: none;
     }
 
-    #timeframe_selector {
-        display:grid;
+    input[type="range"] {
+        padding: 0;
+        border: none;
+        background: transparent;
     }
+
+    #row_selectors {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+
+    #row_timeframe {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--borderColor);
+    }
+
+    #row_zones {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--borderColor);
+        align-items: start;
+    }
+
+    #zone_label {
+        grid-column: 1 / 4;
+        font-weight: bold;
+        font-size: 0.9em;
+    }
+
+    #row_submit {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--borderColor);
+    }
+
+    #zone_reference_note {
+        grid-column: 1 / 4;
+        font-style: italic;
+        font-size: 0.85em;
+        color: #555;
+    }
+
+    #submit_status {
+        font-weight: bold;
+        font-size: 0.9em;
+    }
+
+    /* PROFILE DISPLAY */
+
+    #profile_display {
+        border: 2px solid var(--borderColor);
+        border-radius: 0.5rem;
+        background-color: aliceblue;
+        box-shadow: 5px 5px 0px var(--borderColor);
+        padding: 10px;
+        display: grid;
+        gap: 4px;
+    }
+
+    #profile_display h4 {
+        border-bottom: 1px solid var(--borderColor);
+        padding-bottom: 4px;
+        margin-bottom: 4px;
+    }
+
+    .profile_row {
+        display: flex;
+        gap: 10px;
+        font-size: 0.9em;
+    }
+
+    .profile_key {
+        font-weight: bold;
+        min-width: 120px;
+        text-transform: capitalize;
+    }
+
+    .profile_val {
+        color: #444;
+    }
+
 </style>
