@@ -9,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.startup.module_loader import load_modules
 from backend.startup.database_logistics import init_db, sync_subjects, sync_zone_references, sync_modules, sync_datapoints
-from backend.api.routes import router
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +29,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ── REST router (existing — kept until Svelte frontend is migrated to GraphQL) ─
-# app.include_router(router)
 
 # ── GraphQL router ─────────────────────────────────────────────────────────────
 # Mounted at /graphql alongside REST. GraphiQL IDE available at /graphql in browser.

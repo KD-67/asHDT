@@ -6,23 +6,35 @@ import DatasetManagement from "./dataset_management.svelte";
 
 
 <main>
-<div id="test_div">TESTING DATA MANAGEMENT PORTAL</div>
 
 <div id="main_container">
 
-    <div class="subpage_container">
-        <div>Click here to edit the subject list:</div>
+    <div class="subpage_container" id="header_container">
+        <h2>Data Management Options</h2>
+    </div>
+
+    <div class="subpage_container" id="subject_btn_container">
         <a class="subpage_button" href="http://localhost:5173/#subject_management">Subject Management</a>
+        <ul>
+            <li>Subject Profiles</li>
+            <li>Associated Datasets</li>
+        </ul>
     </div>
     
-    <div class="subpage_container">
-        <div>Click here to edit the module list:</div>
+    <div class="subpage_container" id="module_btn_container">
         <a class="subpage_button" href="http://localhost:5173/#add_module_page">Module Management</a>
+        <ul>
+            <li>Active Modules</li>
+            <li>Associated Markers</li>
+        </ul>
     </div>
     
-    <div class="subpage_container">
-        <div>Click here to edit datasets:</div>
+    <div class="subpage_container" id="dataset_btn_container">
         <a class="subpage_button" href="http://localhost:5173/#dataset_management">Dataset Management</a>
+        <ul>
+            <li>Lorem</li>
+            <li>Ipsum</li>
+        </ul>
     </div>
        
 </div>
@@ -33,10 +45,40 @@ import DatasetManagement from "./dataset_management.svelte";
 <style>
 
 #main_container {
-    border: 1px solid black;
-    display: flex;
-    justify-content: space-evenly;
+    height: 25vh;
+    width: 50vw;
+    display: grid;
+    grid-template-columns: auto auto auto;
+    grid-template-rows: auto auto;
     padding: 1rem;
+    margin: 0 auto;
+    gap: 15px;
+}
+
+#header_container {
+    grid-area: 1 / 2 / 2 / 3;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}
+
+.subpage_container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#subject_btn_container {
+    grid-area: 2 / 1 / 3 / 2;
+}
+
+#module_btn_container {
+    grid-area: 2 / 2 / 3 / 3;
+}
+
+#dataset_btn_container {
+    grid-area: 2 / 3 / 3 / 4;
 }
 
 .subpage_button {
