@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+numpy
+pydantic
+strawberry-graphql[fastapi]
+arq
+redis
+python-multipart

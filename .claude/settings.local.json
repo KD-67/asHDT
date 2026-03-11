@@ -3,7 +3,9 @@
     "allow": [
       "Bash(node:*)",
       "Bash(cd C:\\\\Users\\\\kevin\\\\proj\\\\asHDT\\\\frontend && npm run dev)",
-      "Bash(cd /c/Users/kevin/proj/asHDT/frontend && npm run dev)"
+      "Bash(cd /c/Users/kevin/proj/asHDT/frontend && npm run dev)",
+      "Bash(pip install -r C:UserskevinprojasHDTrequirements.txt -q)",
+      "Bash(pip install -r requirements.txt -q)"
     ]
   }
 }
