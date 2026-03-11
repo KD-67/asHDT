@@ -38,6 +38,11 @@ class AppContext(BaseContext):
         return self.request.app.state.modules_path
 
     @property
+    def methods(self) -> dict:
+        """Analysis method registry loaded from analysis_list.json."""
+        return getattr(self.request.app.state, "methods", {"methods": []})
+
+    @property
     def redis_pool(self):
         """ARQ redis pool for job enqueueing. None if Redis is not available."""
         return getattr(self.request.app.state, "redis_pool", None)

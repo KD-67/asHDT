@@ -73,3 +73,4 @@ def save_timegraph_report(
                 zone_boundaries["vulnerability_margin"],
             ),
         )
+        conn.commit()

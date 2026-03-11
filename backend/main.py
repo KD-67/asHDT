@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.startup.module_loader import load_modules
+from backend.startup.analysis_loader import load_analysis_methods
 from backend.startup.database_logistics import init_db, sync_subjects, sync_zone_references, sync_modules, sync_datapoints
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ DB_PATH         = os.path.join(DATA_DIR, "databases", "asHDT.db")               
 RAWDATA_ROOT    = os.path.join(DATA_DIR, "raw_data")                                   # resolves to: "c:\Users\kevin\proj\asHDT\data\raw_data"
 REPORTS_ROOT    = os.path.join(DATA_DIR, "reports")                                    # resolves to: "c:\Users\kevin\proj\asHDT\data\reports"
 MODULES_PATH    = os.path.join(BASE_DIR, "startup", "module_list.json")                # resolves to: "c:\Users\kevin\proj\asHDT\backend\startup\module_list.json"
+METHODS_PATH    = os.path.join(BASE_DIR, "startup", "analysis_list.json")              # resolves to: "c:\Users\kevin\proj\asHDT\backend\startup\analysis_list.json"
 REFERENCES_ROOT = os.path.join(DATA_DIR, "reference_ranges")                           # resolves to: "c:\Users\kevin\proj\asHDT\data\reference_ranges"
 REDIS_URL       = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
@@ -52,6 +54,7 @@ async def startup():
 
     # ── Store shared paths and state on app.state ──────────────────────────────
     app.state.modules         = load_modules(MODULES_PATH)
+    app.state.methods         = load_analysis_methods(METHODS_PATH)
     app.state.modules_path    = MODULES_PATH
     app.state.db_path         = DB_PATH
     app.state.rawdata_root    = RAWDATA_ROOT

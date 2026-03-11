@@ -27,11 +27,28 @@ class JobStatus(Enum):
 
 @strawberry.enum
 class AnalysisMethod(Enum):
-    TRAJECTORY    = "trajectory"       # Implemented — polynomial + 27-state classification
+    TRAJECTORY    = "trajectory"       # Implemented
     PCA           = "pca"              # Stub — future
     RANDOM_FOREST = "random_forest"    # Stub — future
     NEURAL_NETWORK = "neural_network"  # Stub — future
-    AUTOMATED     = "automated"        # Stub — future (backend auto-selects markers + method)
+    AUTOMATED     = "automated"        # Stub — future
+
+
+# ── Analysis method registry type (served by analysisMethods query) ───────────
+
+@strawberry.type
+class AnalysisMethodInfo:
+    """One entry from analysis_list.json — drives the frontend method dropdown."""
+    method_id:            str
+    method_name:          str
+    description:          str
+    status:               str            # "implemented" | "stub"
+    accepts_single_marker: bool
+    accepts_markerset:    bool
+    min_markers:          Optional[int]
+    max_markers:          Optional[int]
+    params_schema:        str            # "trajectory" | "pca" | "none"
+    output_type:          str
 
 
 # ── Nested result types ────────────────────────────────────────────────────────
@@ -88,7 +105,6 @@ class TrajectoryReport:
 
 
 # Stub types — defined now so the union contract is established.
-# Replace the placeholder fields with real ones when each method is implemented.
 
 @strawberry.type
 class PCAReport:
@@ -113,8 +129,6 @@ class AutomatedInsightReport:
 
 # ── Union ─────────────────────────────────────────────────────────────────────
 
-# THE KEY CONTRACT: adding a new report type here is a non-breaking schema addition.
-# Modern Strawberry uses Annotated[Union[...], strawberry.union("Name")] syntax.
 AnalysisResult = Annotated[
     Union[TrajectoryReport, PCAReport, MLReport, AutomatedInsightReport],
     strawberry.union("AnalysisResult"),
@@ -132,25 +146,33 @@ class AnalysisJob:
     """
     job_id:        str
     status:        JobStatus
-    progress:      Optional[float]          # 0.0–1.0, published by worker
+    progress:      Optional[float]
     created_at:    str
-    result:        Optional[AnalysisResult] # populated when status=COMPLETED
-    error_message: Optional[str]            # populated when status=FAILED
+    result:        Optional[AnalysisResult]
+    error_message: Optional[str]
 
 
 # ── Input types ───────────────────────────────────────────────────────────────
 
 @strawberry.input
 class TimeframeInput:
-    start_time: str  # ISO 8601, e.g. "2026-01-01T00:00:00Z"
+    start_time: str  # ISO 8601
     end_time:   str
+
+
+@strawberry.input
+class MarkerRefInput:
+    """An ad-hoc marker reference: identifies a marker by its location in the data store."""
+    module_id: str
+    marker_id: str
 
 
 @strawberry.input
 class TrajectoryParamsInput:
     """
     Parameters specific to TRAJECTORY method.
-    Zone boundaries are provided by the caller (obtained from Query.zoneReference).
+    Zone boundaries are used for single-marker ad-hoc analysis (marker_refs path).
+    For markerset-based analysis, zone boundaries are resolved per-marker from the DB.
     """
     polynomial_degree:    int   = 3
     healthy_min:          float = 0.0
@@ -162,26 +184,29 @@ class TrajectoryParamsInput:
 class AnalysisInput:
     """
     Unified input for all analysis methods.
-    marker_ids is an array — multi-marker analysis is supported structurally from day one,
-    even though the TRAJECTORY method currently uses only marker_ids[0].
+
+    Exactly one of markerset_id / marker_refs must be provided:
+        markerset_id  — use a saved markerset instance (composite mode; zone boundaries from DB)
+        marker_refs   — ad-hoc single or multi-marker (single-marker uses trajectory_params
+                        zone boundaries; multi-marker uses DB zone boundaries per marker)
     """
     subject_id:        str
-    module_id:         str
-    marker_ids:        list[str]      # Array: multi-marker future-ready
     method:            AnalysisMethod
     timeframe:         TimeframeInput
+    markerset_id:      Optional[str]                   = None
+    marker_refs:       Optional[list[MarkerRefInput]]  = None
     trajectory_params: Optional[TrajectoryParamsInput] = None
-    # Future: pca_params, ml_params, automated_params — add here, non-breaking
+    # Future: pca_params, ml_params, automated_params
 
 
 # ── Helper: build TrajectoryReport from worker result payload ──────────────────
 
 def build_trajectory_report(data: dict) -> TrajectoryReport:
     """Converts the raw dict published by the worker into a TrajectoryReport."""
-    result     = data["result"]
-    raw_meta   = result["fit_metadata"]
-    raw_norm   = raw_meta["normalization"]
-    raw_zones  = raw_meta["zone_boundaries"]
+    result    = data["result"]
+    raw_meta  = result["fit_metadata"]
+    raw_norm  = raw_meta["normalization"]
+    raw_zones = raw_meta["zone_boundaries"]
 
     fit_metadata = FitMetadata(
         coefficients      = raw_meta["coefficients"],

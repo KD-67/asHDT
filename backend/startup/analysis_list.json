@@ -1,0 +1,40 @@
+{
+  "methods": [
+    {
+      "method_id": "trajectory",
+      "method_name": "Trajectory Analysis",
+      "description": "Polynomial fit + 27-state classification. Works on a single marker or a composite markerset.",
+      "status": "implemented",
+      "accepts_single_marker": true,
+      "accepts_markerset": true,
+      "min_markers": 1,
+      "max_markers": null,
+      "params_schema": "trajectory",
+      "output_type": "TrajectoryReport"
+    },
+    {
+      "method_id": "pca",
+      "method_name": "Principal Component Analysis",
+      "description": "Dimensionality reduction across multiple markers. Identifies dominant variance axes.",
+      "status": "stub",
+      "accepts_single_marker": false,
+      "accepts_markerset": true,
+      "min_markers": 2,
+      "max_markers": null,
+      "params_schema": "pca",
+      "output_type": "PCAReport"
+    },
+    {
+      "method_id": "automated",
+      "method_name": "Automated (AI-Selected)",
+      "description": "Backend selects markers, method, and parameters automatically based on available data.",
+      "status": "stub",
+      "accepts_single_marker": false,
+      "accepts_markerset": false,
+      "min_markers": null,
+      "max_markers": null,
+      "params_schema": "none",
+      "output_type": "AutomatedInsightReport"
+    }
+  ]
+}

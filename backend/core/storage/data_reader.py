@@ -82,3 +82,44 @@ def read_timeseries(
     datapoints.sort(key=lambda dp: dp["parsed_timestamp"])
 
     return datapoints
+
+
+def read_multi_marker_timeseries(
+    rawdata_root: str,
+    subject_id:   str,
+    marker_refs:  list[dict],   # [{module_id, marker_id, zone_boundaries?, ...}]
+    from_time:    datetime,
+    to_time:      datetime,
+) -> list[dict]:
+    """
+    Reads timeseries for multiple markers.
+
+    Returns a list of dicts, one per active marker:
+        {
+            "config":          dict   (the full marker_ref entry, including feature config),
+            "datapoints":      list[dict],
+            "zone_boundaries": dict,
+        }
+
+    Markers with no data in the timeframe are included with an empty datapoints list
+    (composite_builder will skip them with a warning rather than raising).
+    """
+    result = []
+    for marker in marker_refs:
+        if not marker.get("active", True):
+            continue
+        module_id = marker["module_id"]
+        marker_id = marker["marker_id"]
+        try:
+            dps = read_timeseries(rawdata_root, subject_id, module_id, marker_id, from_time, to_time)
+        except FileNotFoundError:
+            logger.warning(
+                "No index.json for %s/%s/%s — skipping this marker.", subject_id, module_id, marker_id
+            )
+            dps = []
+        result.append({
+            "config":          marker,
+            "datapoints":      dps,
+            "zone_boundaries": marker.get("zone_boundaries", {}),
+        })
+    return result

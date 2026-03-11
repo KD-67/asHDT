@@ -35,6 +35,12 @@ from backend.graphql.types.analysis import (
     JobStatus,
     TrajectoryParamsInput,
 )
+from backend.graphql.types.markerset import (
+    MarkersetTemplate, MarkersetInstance,
+    CreateMarkersetTemplateInput, CreateMarkersetInstanceInput,
+    feature_config_from_dict, feature_config_input_to_dict,
+)
+from backend.core.storage.markerset_reader import resolve_markerset_markers
 
 
 # ── Shared helpers (mirror routes.py helpers) ──────────────────────────────────
@@ -160,14 +166,17 @@ class Mutation:
                 "async analysis jobs."
             )
 
-        if not input.marker_ids:
-            raise GraphQLError("marker_ids must contain at least one marker ID.")
+        # Validate: exactly one of markerset_id / marker_refs must be set
+        has_markerset = input.markerset_id is not None
+        has_refs      = input.marker_refs  is not None and len(input.marker_refs) > 0
+        if has_markerset == has_refs:
+            raise GraphQLError(
+                "Exactly one of markerset_id or marker_refs must be provided."
+            )
 
         if input.method == AnalysisMethod.TRAJECTORY:
             if input.trajectory_params is None:
-                raise GraphQLError(
-                    "trajectory_params is required when method=TRAJECTORY."
-                )
+                raise GraphQLError("trajectory_params is required when method=TRAJECTORY.")
         else:
             raise GraphQLError(
                 f"Analysis method '{input.method.value}' is not yet implemented. "
@@ -177,7 +186,6 @@ class Mutation:
         job_id     = str(uuid4())
         created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-        # Serialise input for the ARQ worker (must be JSON-serialisable)
         timeframe_dict: dict = {
             "start_time": input.timeframe.start_time,
             "end_time":   input.timeframe.end_time,
@@ -190,19 +198,36 @@ class Mutation:
             "vulnerability_margin": params.vulnerability_margin,
         }
 
+        if has_markerset:
+            # Resolve markerset instance → fully-configured markers with DB zone boundaries
+            try:
+                resolved_markers = resolve_markerset_markers(
+                    ctx.db_path, input.subject_id, instance_id=input.markerset_id
+                )
+            except ValueError as e:
+                raise GraphQLError(str(e))
+            use_composite = True
+        else:
+            # Ad-hoc marker_refs
+            resolved_markers = [
+                {"module_id": m.module_id, "marker_id": m.marker_id}
+                for m in input.marker_refs  # type: ignore[union-attr]
+            ]
+            use_composite = len(resolved_markers) > 1
+
         await ctx.redis_pool.enqueue_job(
             "run_trajectory_analysis",
-            job_id             = job_id,
-            subject_id         = input.subject_id,
-            module_id          = input.module_id,
-            marker_ids         = input.marker_ids,
-            timeframe          = timeframe_dict,
-            trajectory_params  = trajectory_params_dict,
-            db_path            = ctx.db_path,
-            rawdata_root       = ctx.rawdata_root,
-            reports_root       = ctx.reports_root,
-            created_at         = created_at,
-            _job_id            = job_id,
+            job_id            = job_id,
+            subject_id        = input.subject_id,
+            marker_refs       = resolved_markers,
+            use_composite     = use_composite,
+            timeframe         = timeframe_dict,
+            trajectory_params = trajectory_params_dict,
+            db_path           = ctx.db_path,
+            rawdata_root      = ctx.rawdata_root,
+            reports_root      = ctx.reports_root,
+            created_at        = created_at,
+            _job_id           = job_id,
         )
 
         return AnalysisJob(
@@ -1010,6 +1035,172 @@ class Mutation:
             healthy_max          = input.healthy_max,
             vulnerability_margin = input.vulnerability_margin,
         )
+
+    # ── 7. Markerset CRUD ──────────────────────────────────────────────────────
+
+    @strawberry.mutation(description="Create a new markerset template.")
+    def create_markerset_template(
+        self,
+        info:  strawberry.types.Info[AppContext, None],
+        input: CreateMarkersetTemplateInput,
+    ) -> MarkersetTemplate:
+        ctx          = info.context
+        markerset_id = str(uuid4())
+        created_at   = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        markers_list = [feature_config_input_to_dict(m) for m in input.markers]
+        markers_json = json.dumps(markers_list)
+
+        with get_connection(ctx.db_path) as conn:
+            conn.execute(
+                "INSERT INTO markerset_templates (markerset_id, name, description, markers_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (markerset_id, input.name, input.description, markers_json, created_at),
+            )
+            conn.commit()
+
+        return MarkersetTemplate(
+            markerset_id = markerset_id,
+            name         = input.name,
+            description  = input.description or "",
+            markers      = [feature_config_from_dict(m) for m in markers_list],
+            created_at   = created_at,
+        )
+
+    @strawberry.mutation(description="Update an existing markerset template.")
+    def update_markerset_template(
+        self,
+        info:         strawberry.types.Info[AppContext, None],
+        markerset_id: str,
+        input:        CreateMarkersetTemplateInput,
+    ) -> MarkersetTemplate:
+        ctx          = info.context
+        markers_list = [feature_config_input_to_dict(m) for m in input.markers]
+        markers_json = json.dumps(markers_list)
+
+        with get_connection(ctx.db_path) as conn:
+            cur = conn.execute(
+                "UPDATE markerset_templates SET name=?, description=?, markers_json=? "
+                "WHERE markerset_id=?",
+                (input.name, input.description, markers_json, markerset_id),
+            )
+            conn.commit()
+            if cur.rowcount == 0:
+                raise GraphQLError(f"Markerset template '{markerset_id}' not found.")
+
+            row = conn.execute(
+                "SELECT created_at FROM markerset_templates WHERE markerset_id=?",
+                (markerset_id,),
+            ).fetchone()
+
+        return MarkersetTemplate(
+            markerset_id = markerset_id,
+            name         = input.name,
+            description  = input.description or "",
+            markers      = [feature_config_from_dict(m) for m in markers_list],
+            created_at   = row["created_at"],
+        )
+
+    @strawberry.mutation(description="Delete a markerset template.")
+    def delete_markerset_template(
+        self,
+        info:         strawberry.types.Info[AppContext, None],
+        markerset_id: str,
+    ) -> bool:
+        ctx = info.context
+        with get_connection(ctx.db_path) as conn:
+            cur = conn.execute(
+                "DELETE FROM markerset_templates WHERE markerset_id=?", (markerset_id,)
+            )
+            conn.commit()
+            if cur.rowcount == 0:
+                raise GraphQLError(f"Markerset template '{markerset_id}' not found.")
+        return True
+
+    @strawberry.mutation(description="Create a markerset instance for a subject.")
+    def create_markerset_instance(
+        self,
+        info:       strawberry.types.Info[AppContext, None],
+        subject_id: str,
+        input:      CreateMarkersetInstanceInput,
+    ) -> MarkersetInstance:
+        ctx         = info.context
+        instance_id = str(uuid4())
+        created_at  = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+        # For template-based instances, store the full marker list as overrides
+        # (sparse override semantics applied at read time by markerset_reader)
+        markers_list  = [feature_config_input_to_dict(m) for m in input.markers]
+        overrides_json = json.dumps(markers_list)
+
+        with get_connection(ctx.db_path) as conn:
+            conn.execute(
+                "INSERT INTO markerset_instances "
+                "(instance_id, subject_id, markerset_id, name, overrides_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (instance_id, subject_id, input.markerset_id, input.name,
+                 overrides_json, created_at),
+            )
+            conn.commit()
+
+        return MarkersetInstance(
+            instance_id  = instance_id,
+            subject_id   = subject_id,
+            markerset_id = input.markerset_id,
+            name         = input.name,
+            markers      = [feature_config_from_dict(m) for m in markers_list],
+            created_at   = created_at,
+        )
+
+    @strawberry.mutation(description="Update a markerset instance.")
+    def update_markerset_instance(
+        self,
+        info:        strawberry.types.Info[AppContext, None],
+        instance_id: str,
+        input:       CreateMarkersetInstanceInput,
+    ) -> MarkersetInstance:
+        ctx           = info.context
+        markers_list  = [feature_config_input_to_dict(m) for m in input.markers]
+        overrides_json = json.dumps(markers_list)
+
+        with get_connection(ctx.db_path) as conn:
+            cur = conn.execute(
+                "UPDATE markerset_instances SET name=?, markerset_id=?, overrides_json=? "
+                "WHERE instance_id=?",
+                (input.name, input.markerset_id, overrides_json, instance_id),
+            )
+            conn.commit()
+            if cur.rowcount == 0:
+                raise GraphQLError(f"Markerset instance '{instance_id}' not found.")
+
+            row = conn.execute(
+                "SELECT subject_id, created_at FROM markerset_instances WHERE instance_id=?",
+                (instance_id,),
+            ).fetchone()
+
+        return MarkersetInstance(
+            instance_id  = instance_id,
+            subject_id   = row["subject_id"],
+            markerset_id = input.markerset_id,
+            name         = input.name,
+            markers      = [feature_config_from_dict(m) for m in markers_list],
+            created_at   = row["created_at"],
+        )
+
+    @strawberry.mutation(description="Delete a markerset instance.")
+    def delete_markerset_instance(
+        self,
+        info:        strawberry.types.Info[AppContext, None],
+        instance_id: str,
+    ) -> bool:
+        ctx = info.context
+        with get_connection(ctx.db_path) as conn:
+            cur = conn.execute(
+                "DELETE FROM markerset_instances WHERE instance_id=?", (instance_id,)
+            )
+            conn.commit()
+            if cur.rowcount == 0:
+                raise GraphQLError(f"Markerset instance '{instance_id}' not found.")
+        return True
 
     @strawberry.mutation(description="Delete a demographic zone row.")
     def delete_demographic_zone(

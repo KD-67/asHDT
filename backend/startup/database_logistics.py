@@ -74,6 +74,28 @@ def init_db (db_path: str) -> None:
                 UNIQUE(module_id, marker_id)
             )
         """)
+        # Table 6: Markerset templates (global, not subject-specific)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS markerset_templates (
+                markerset_id TEXT PRIMARY KEY,
+                name         TEXT NOT NULL,
+                description  TEXT,
+                markers_json TEXT NOT NULL,
+                created_at   TEXT NOT NULL
+            )
+        """)
+        # Table 7: Per-subject markerset instances (bind a template to a subject with optional overrides)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS markerset_instances (
+                instance_id    TEXT PRIMARY KEY,
+                subject_id     TEXT NOT NULL,
+                markerset_id   TEXT,
+                name           TEXT NOT NULL,
+                overrides_json TEXT NOT NULL,
+                created_at     TEXT NOT NULL,
+                FOREIGN KEY (subject_id) REFERENCES subjects(subject_id)
+            )
+        """)
         # Runtime migrations for existing DBs
         try:
             conn.execute("ALTER TABLE modules ADD COLUMN module_name TEXT")

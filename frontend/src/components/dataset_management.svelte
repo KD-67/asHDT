@@ -1,417 +1,588 @@
 <script>
     import { onMount } from "svelte";
-    import { gql, gqlUpload } from "../lib/gql.js";
+    import { gql } from "../lib/gql.js";
+
+    // ── State ──────────────────────────────────────────────────────────────────
 
     let subjects = $state([]);
     let selectedSubject = $state("");
-    let datasets = $state([]);
-    let selectedDataset = $state(null); // { module_id, marker_id }
-    let datapoints = $state([]);
+    let modules = $state([]);
+
+    // Templates
+    let templates = $state([]);
+    let selectedTemplate = $state(null);   // full template object
+
+    // Instances (per-subject)
+    let instances = $state([]);
+    let selectedInstance = $state(null);   // full instance object
+
+    // Editor state (shared for template + instance creation/editing)
+    let editorMode = $state(null);   // null | "new_template" | "edit_template" | "new_instance" | "edit_instance"
+    let editorName = $state("");
+    let editorDescription = $state("");
+    let editorMarkerset_id = $state("");   // for instance: FK to template (or "" for custom)
+    let editorMarkers = $state([]);
+    // Each marker: { module_id, marker_id, weight, active, transform_type, transform_window_hours, transform_lag_hours, missing_data }
+
     let statusMessage = $state("");
     let statusOk = $state(true);
-    let modules = $state([]);
-    let newDsModule = $state("");
-    let newDsMarker = $state("");
 
-    // Edit datapoint
-    let editingDp = $state(null);
-    let editTs = $state("");
-    let editValue = $state("");
-    let editUnit = $state("");
-    let editQuality = $state("good");
+    // Module selector for adding a marker to the editor
+    let addMarkerModule = $state("");
+    let addMarkerMarker = $state("");
 
-    // Add datapoint form
-    let addTab = $state("form"); // "form" or "upload"
-    let dpTimestamp = $state("");
-    let dpValue = $state("");
-    let dpUnit = $state("");
-    let dpQuality = $state("good");
-    let uploadFile = $state(null);
+    // ── Derived ────────────────────────────────────────────────────────────────
+
+    let availableMarkersForAdd = $derived(
+        modules.find(m => m.module_id === addMarkerModule)?.markers ?? []
+    );
+
+    $effect(() => { addMarkerModule; addMarkerMarker = ""; });
+
+    // ── Load on mount ──────────────────────────────────────────────────────────
 
     onMount(async () => {
-        const [subData, modData] = await Promise.all([
+        const [subData, modData, tmplData] = await Promise.all([
             gql(`query { subjects { subjectId } }`),
             gql(`query { modules { moduleId moduleName markers { markerId markerName } } }`),
+            gql(`query { markersetTemplates { markersetId name description markers {
+                    moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
+                } createdAt } }`),
         ]);
-        subjects = subData.subjects.map(s => s.subjectId);
-        modules  = modData.modules.map(m => ({
+        subjects  = subData.subjects.map(s => s.subjectId);
+        modules   = modData.modules.map(m => ({
             module_id:   m.moduleId,
             module_name: m.moduleName,
             markers:     m.markers.map(mk => ({ marker_id: mk.markerId, marker_name: mk.markerName })),
         }));
+        templates = tmplData.markersetTemplates.map(normaliseTemplate);
     });
 
-    let availableMarkers = $derived(
-        modules.find(m => m.module_id === newDsModule)?.markers ?? []
-    );
+    // ── Normalise GQL responses ────────────────────────────────────────────────
 
-    $effect(() => {
-        newDsModule;
-        newDsMarker = "";
-    });
+    function normaliseTemplate(t) {
+        return {
+            markerset_id: t.markersetId,
+            name:         t.name,
+            description:  t.description ?? "",
+            markers:      t.markers.map(normaliseMarker),
+            created_at:   t.createdAt,
+        };
+    }
 
-    function handleOpenDataset() {
-        if (!newDsModule || !newDsMarker) {
-            setStatus("Select a module and marker first.", false);
-            return;
+    function normaliseInstance(i) {
+        return {
+            instance_id:  i.instanceId,
+            subject_id:   i.subjectId,
+            markerset_id: i.markersetId ?? "",
+            name:         i.name,
+            markers:      i.markers.map(normaliseMarker),
+            created_at:   i.createdAt,
+        };
+    }
+
+    function normaliseMarker(m) {
+        return {
+            module_id:              m.moduleId,
+            marker_id:              m.markerId,
+            weight:                 m.weight ?? 1.0,
+            active:                 m.active ?? true,
+            transform_type:         m.transformType ?? "none",
+            transform_window_hours: m.transformWindowHours ?? null,
+            transform_lag_hours:    m.transformLagHours ?? null,
+            missing_data:           m.missingData ?? "interpolate",
+        };
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    function setStatus(msg, ok = true) { statusMessage = msg; statusOk = ok; }
+
+    function markerToGqlInput(m) {
+        return {
+            moduleId:    m.module_id,
+            markerId:    m.marker_id,
+            weight:      m.weight,
+            active:      m.active,
+            transform: {
+                type:        m.transform_type,
+                windowHours: m.transform_window_hours ?? null,
+                lagHours:    m.transform_lag_hours ?? null,
+            },
+            missingData: m.missing_data,
+        };
+    }
+
+    function markerLabel(m) {
+        const mod = modules.find(md => md.module_id === m.module_id);
+        const mk  = mod?.markers.find(mk => mk.marker_id === m.marker_id);
+        return `${mod?.module_name || m.module_id} / ${mk?.marker_name || m.marker_id}`;
+    }
+
+    // ── Template actions ───────────────────────────────────────────────────────
+
+    function startNewTemplate() {
+        editorMode        = "new_template";
+        editorName        = "";
+        editorDescription = "";
+        editorMarkers     = [];
+        statusMessage     = "";
+    }
+
+    function startEditTemplate(tmpl) {
+        selectedTemplate  = tmpl;
+        editorMode        = "edit_template";
+        editorName        = tmpl.name;
+        editorDescription = tmpl.description;
+        editorMarkers     = tmpl.markers.map(m => ({ ...m }));
+        statusMessage     = "";
+    }
+
+    async function saveTemplate() {
+        if (!editorName.trim()) { setStatus("Name is required.", false); return; }
+        if (editorMarkers.length === 0) { setStatus("Add at least one marker.", false); return; }
+
+        const markersInput = editorMarkers.map(markerToGqlInput);
+
+        try {
+            if (editorMode === "new_template") {
+                const data = await gql(
+                    `mutation($input: CreateMarkersetTemplateInput!) {
+                        createMarkersetTemplate(input: $input) {
+                            markersetId name description markers {
+                                moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
+                            } createdAt
+                        }
+                    }`,
+                    { input: { name: editorName, description: editorDescription, markers: markersInput } }
+                );
+                templates = [...templates, normaliseTemplate(data.createMarkersetTemplate)];
+                setStatus(`Template "${editorName}" created.`);
+            } else {
+                const data = await gql(
+                    `mutation($id: String!, $input: CreateMarkersetTemplateInput!) {
+                        updateMarkersetTemplate(markersetId: $id, input: $input) {
+                            markersetId name description markers {
+                                moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
+                            } createdAt
+                        }
+                    }`,
+                    { id: selectedTemplate.markerset_id, input: { name: editorName, description: editorDescription, markers: markersInput } }
+                );
+                const updated = normaliseTemplate(data.updateMarkersetTemplate);
+                templates = templates.map(t => t.markerset_id === updated.markerset_id ? updated : t);
+                selectedTemplate = updated;
+                setStatus(`Template "${editorName}" updated.`);
+            }
+            editorMode = null;
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
         }
-        loadDatapoints(newDsModule, newDsMarker);
-        statusMessage = "";
     }
 
-    function setStatus(msg, ok = true) {
-        statusMessage = msg;
-        statusOk = ok;
+    async function deleteTemplate(tmpl) {
+        if (!confirm(`Delete template "${tmpl.name}"? Instances using it will lose their base.`)) return;
+        try {
+            await gql(
+                `mutation($id: String!) { deleteMarkersetTemplate(markersetId: $id) }`,
+                { id: tmpl.markerset_id }
+            );
+            templates = templates.filter(t => t.markerset_id !== tmpl.markerset_id);
+            if (selectedTemplate?.markerset_id === tmpl.markerset_id) selectedTemplate = null;
+            setStatus(`Template "${tmpl.name}" deleted.`);
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
+        }
     }
 
-    async function loadDatasets(subject_id) {
-        datasets = [];
-        selectedDataset = null;
-        datapoints = [];
-        statusMessage = "";
+    // ── Instance actions ───────────────────────────────────────────────────────
+
+    async function loadInstances(subjectId) {
+        instances = [];
+        selectedInstance = null;
+        if (!subjectId) return;
         try {
             const data = await gql(
-                `query($s: String!) { datasets(subjectId: $s) { moduleId markerId entryCount } }`,
-                { s: subject_id }
+                `query($s: String!) { markersetInstances(subjectId: $s) {
+                    instanceId subjectId markersetId name markers {
+                        moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
+                    } createdAt
+                } }`,
+                { s: subjectId }
             );
-            datasets = data.datasets.map(d => ({
-                module_id:   d.moduleId,
-                marker_id:   d.markerId,
-                entry_count: d.entryCount,
-            }));
+            instances = data.markersetInstances.map(normaliseInstance);
         } catch (e) {
-            setStatus("Failed to load datasets.", false);
+            setStatus("Failed to load instances.", false);
         }
     }
 
-    async function loadDatapoints(module_id, marker_id) {
-        selectedDataset = { module_id, marker_id };
-        datapoints = [];
-        dpUnit = "";
+    function startNewInstance(fromTemplate = null) {
+        editorMode        = "new_instance";
+        editorName        = fromTemplate ? `${fromTemplate.name} (${selectedSubject})` : "";
+        editorMarkerset_id = fromTemplate?.markerset_id ?? "";
+        editorMarkers     = fromTemplate ? fromTemplate.markers.map(m => ({ ...m })) : [];
+        statusMessage     = "";
+    }
+
+    function startEditInstance(inst) {
+        selectedInstance   = inst;
+        editorMode         = "edit_instance";
+        editorName         = inst.name;
+        editorMarkerset_id = inst.markerset_id;
+        editorMarkers      = inst.markers.map(m => ({ ...m }));
+        statusMessage      = "";
+    }
+
+    async function saveInstance() {
+        if (!selectedSubject) { setStatus("Select a subject first.", false); return; }
+        if (!editorName.trim()) { setStatus("Name is required.", false); return; }
+        if (editorMarkers.length === 0) { setStatus("Add at least one marker.", false); return; }
+
+        const markersInput = editorMarkers.map(markerToGqlInput);
+        const instInput = {
+            markersetId: editorMarkerset_id || null,
+            name:        editorName,
+            markers:     markersInput,
+        };
+
+        try {
+            if (editorMode === "new_instance") {
+                const data = await gql(
+                    `mutation($s: String!, $input: CreateMarkersetInstanceInput!) {
+                        createMarkersetInstance(subjectId: $s, input: $input) {
+                            instanceId subjectId markersetId name markers {
+                                moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
+                            } createdAt
+                        }
+                    }`,
+                    { s: selectedSubject, input: instInput }
+                );
+                instances = [...instances, normaliseInstance(data.createMarkersetInstance)];
+                setStatus(`Instance "${editorName}" created.`);
+            } else {
+                const data = await gql(
+                    `mutation($id: String!, $input: CreateMarkersetInstanceInput!) {
+                        updateMarkersetInstance(instanceId: $id, input: $input) {
+                            instanceId subjectId markersetId name markers {
+                                moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
+                            } createdAt
+                        }
+                    }`,
+                    { id: selectedInstance.instance_id, input: instInput }
+                );
+                const updated = normaliseInstance(data.updateMarkersetInstance);
+                instances = instances.map(i => i.instance_id === updated.instance_id ? updated : i);
+                selectedInstance = updated;
+                setStatus(`Instance "${editorName}" updated.`);
+            }
+            editorMode = null;
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
+        }
+    }
+
+    async function deleteInstance(inst) {
+        if (!confirm(`Delete instance "${inst.name}"?`)) return;
+        try {
+            await gql(
+                `mutation($id: String!) { deleteMarkersetInstance(instanceId: $id) }`,
+                { id: inst.instance_id }
+            );
+            instances = instances.filter(i => i.instance_id !== inst.instance_id);
+            if (selectedInstance?.instance_id === inst.instance_id) selectedInstance = null;
+            setStatus(`Instance "${inst.name}" deleted.`);
+        } catch (e) {
+            setStatus(`Error: ${e.message}`, false);
+        }
+    }
+
+    // ── Editor: marker management ──────────────────────────────────────────────
+
+    function addMarkerToEditor() {
+        if (!addMarkerModule || !addMarkerMarker) {
+            setStatus("Select a module and marker to add.", false); return;
+        }
+        if (editorMarkers.some(m => m.module_id === addMarkerModule && m.marker_id === addMarkerMarker)) {
+            setStatus("Marker already in list.", false); return;
+        }
+        editorMarkers = [...editorMarkers, {
+            module_id:              addMarkerModule,
+            marker_id:              addMarkerMarker,
+            weight:                 1.0,
+            active:                 true,
+            transform_type:         "none",
+            transform_window_hours: null,
+            transform_lag_hours:    null,
+            missing_data:           "interpolate",
+        }];
+        addMarkerModule = ""; addMarkerMarker = "";
         statusMessage = "";
-        try {
-            const data = await gql(
-                `query($s: String!, $mo: String!, $ma: String!) {
-                    datapoints(subjectId: $s, moduleId: $mo, markerId: $ma) {
-                        measuredAt value unit dataQuality
-                    }
-                }`,
-                { s: selectedSubject, mo: module_id, ma: marker_id }
-            );
-            datapoints = data.datapoints.map(dp => ({
-                measured_at:  dp.measuredAt,
-                value:        dp.value,
-                unit:         dp.unit,
-                data_quality: dp.dataQuality,
-            }));
-            if (datapoints.length > 0) dpUnit = datapoints[0].unit ?? "";
-        } catch (e) {
-            setStatus(`Failed to load datapoints.`, false);
-        }
     }
 
-    function handleStartEdit(dp) {
-        editingDp  = dp;
-        editTs     = dp.measured_at.slice(0, 16);
-        editValue  = String(dp.value);
-        editUnit   = dp.unit ?? "";
-        editQuality = dp.data_quality ?? "good";
+    function removeMarkerFromEditor(index) {
+        editorMarkers = editorMarkers.filter((_, i) => i !== index);
+    }
+
+    function cancelEditor() {
+        editorMode = null;
         statusMessage = "";
-    }
-
-    async function handleEditSave() {
-        if (!editTs)        { setStatus("Timestamp is required.", false); return; }
-        if (editValue === "") { setStatus("Value is required.", false); return; }
-        const mid = selectedDataset.module_id;
-        const mkid = selectedDataset.marker_id;
-        try {
-            await gql(
-                `mutation($s: String!, $mo: String!, $ma: String!, $orig: String!, $input: DatapointInput!) {
-                    updateDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, originalMeasuredAt: $orig, input: $input) {
-                        measuredAt
-                    }
-                }`,
-                {
-                    s: selectedSubject, mo: mid, ma: mkid,
-                    orig: editingDp.measured_at,
-                    input: {
-                        measuredAt:  new Date(editTs).toISOString(),
-                        value:       parseFloat(editValue),
-                        unit:        editUnit,
-                        dataQuality: editQuality,
-                    },
-                }
-            );
-            setStatus("Datapoint updated.");
-            editingDp = null;
-            await loadDatasets(selectedSubject);
-            await loadDatapoints(mid, mkid);
-        } catch (e) {
-            setStatus(`Error: ${e.message}`, false);
-        }
-    }
-
-    async function handleAddForm() {
-        if (!dpTimestamp)   { setStatus("Timestamp is required.", false); return; }
-        if (dpValue === "") { setStatus("Value is required.", false); return; }
-        const mid = selectedDataset.module_id;
-        const mkid = selectedDataset.marker_id;
-        try {
-            await gql(
-                `mutation($s: String!, $mo: String!, $ma: String!, $input: DatapointInput!) {
-                    addDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, input: $input) { measuredAt }
-                }`,
-                {
-                    s: selectedSubject, mo: mid, ma: mkid,
-                    input: {
-                        measuredAt:  new Date(dpTimestamp).toISOString(),
-                        value:       parseFloat(dpValue),
-                        unit:        dpUnit,
-                        dataQuality: dpQuality,
-                    },
-                }
-            );
-            setStatus("Datapoint added.");
-            dpTimestamp = ""; dpValue = ""; dpQuality = "good";
-            await loadDatasets(selectedSubject);
-            await loadDatapoints(mid, mkid);
-        } catch (e) {
-            setStatus(`Error: ${e.message}`, false);
-        }
-    }
-
-    async function handleUpload() {
-        if (!uploadFile) { setStatus("Select a file first.", false); return; }
-        const mid = selectedDataset.module_id;
-        const mkid = selectedDataset.marker_id;
-        try {
-            await gqlUpload(
-                `mutation($s: String!, $mo: String!, $ma: String!, $file: Upload!) {
-                    uploadDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, file: $file) { measuredAt }
-                }`,
-                { s: selectedSubject, mo: mid, ma: mkid },
-                "file",
-                uploadFile
-            );
-            setStatus("File uploaded.");
-            uploadFile = null;
-            await loadDatasets(selectedSubject);
-            await loadDatapoints(mid, mkid);
-        } catch (e) {
-            setStatus(`Error: ${e.message}`, false);
-        }
-    }
-
-    async function handleDeleteDatapoint(measured_at) {
-        if (!confirm(`Delete datapoint at ${measured_at}?`)) return;
-        const mid = selectedDataset.module_id;
-        const mkid = selectedDataset.marker_id;
-        try {
-            await gql(
-                `mutation($s: String!, $mo: String!, $ma: String!, $ts: String!) {
-                    deleteDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, measuredAt: $ts)
-                }`,
-                { s: selectedSubject, mo: mid, ma: mkid, ts: measured_at }
-            );
-            setStatus("Datapoint deleted.");
-            await loadDatasets(selectedSubject);
-            await loadDatapoints(mid, mkid);
-        } catch (e) {
-            setStatus(`Error: ${e.message}`, false);
-        }
-    }
-
-    async function handleDeleteDataset(module_id, marker_id) {
-        if (!confirm(`Delete entire dataset ${module_id}/${marker_id} for ${selectedSubject}? This cannot be undone.`)) return;
-        try {
-            await gql(
-                `mutation($s: String!, $mo: String!, $ma: String!) {
-                    deleteDataset(subjectId: $s, moduleId: $mo, markerId: $ma)
-                }`,
-                { s: selectedSubject, mo: module_id, ma: marker_id }
-            );
-            setStatus(`Dataset ${module_id}/${marker_id} deleted.`);
-            selectedDataset = null;
-            datapoints = [];
-            await loadDatasets(selectedSubject);
-        } catch (e) {
-            setStatus(`Error: ${e.message}`, false);
-        }
     }
 </script>
 
 <main>
     <div id="main_container">
 
-        <!-- Subject selector -->
-        <div id="subject_selector">
-            <label for="subject_select">Subject:</label>
-            <select id="subject_select" bind:value={selectedSubject} onchange={() =>
-loadDatasets(selectedSubject)}>
-                <option value="">-- select --</option>
-                {#each subjects as s}
-                    <option value={s}>{s}</option>
-                {/each}
-            </select>
-        </div>
-
-        {#if selectedSubject}
-            <div id="new_dataset_row">
-                <label for="nd_module">Module</label>
-                <select id="nd_module" bind:value={newDsModule}>
-                    <option value="">-- module --</option>
-                    {#each modules as m}
-                        <option value={m.module_id}>{m.module_name || m.module_id}</option>
-                    {/each}
-                </select>
-
-                <label for="nd_marker">Marker</label>
-                <select id="nd_marker" bind:value={newDsMarker} disabled={!newDsModule}>
-                    <option value="">-- marker --</option>
-                    {#each availableMarkers as mk}
-                        <option value={mk.marker_id}>{mk.marker_name || mk.marker_id}</option>
-                    {/each}
-                </select>
-
-                <button type="button" onclick={handleOpenDataset}>Open</button>
-            </div>
-        {/if}
+        <h2 id="page_title">Markerset Builder</h2>
+        <p id="page_subtitle">Create and manage named compositions of markers with feature-engineering config. Markersets are the primary input for multi-marker analyses.</p>
 
         {#if statusMessage}
             <p id="status_msg" class:error={!statusOk}>{statusMessage}</p>
         {/if}
 
-        <!-- Dataset list -->
-        {#if selectedSubject}
-            <div id="dataset_list">
-                <h3>Datasets for {selectedSubject}</h3>
-                {#if datasets.length === 0}
-                    <p class="empty_msg">No datasets found.</p>
+        <!-- ── Templates + Instances side-by-side ── -->
+        <div id="panels">
+
+            <!-- LEFT: Templates -->
+            <div class="panel">
+                <div class="panel_header">
+                    <h3>Markerset Templates</h3>
+                    <button type="button" class="small_btn add_btn" onclick={startNewTemplate}>+ New template</button>
+                </div>
+
+                {#if templates.length === 0}
+                    <p class="empty_msg">No templates yet.</p>
                 {:else}
                     <table>
-                        <thead>
-                            <tr>
-                                <th>Module</th>
-                                <th>Marker</th>
-                                <th>Entries</th>
-                                <th></th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>Name</th><th>Markers</th><th></th></tr></thead>
                         <tbody>
-                            {#each datasets as ds}
-                                <tr class:selected_row={selectedDataset?.module_id === ds.module_id &&
-selectedDataset?.marker_id === ds.marker_id}
-                                    onclick={() => loadDatapoints(ds.module_id, ds.marker_id)}
-                                    style="cursor: pointer;">
-                                    <td>{ds.module_id}</td>
-                                    <td>{ds.marker_id}</td>
-                                    <td>{ds.entry_count}</td>
-                                    <td><button type="button" class="delete_btn" onclick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteDataset(ds.module_id, ds.marker_id);
-                                    }}>Delete</button></td>
+                            {#each templates as tmpl}
+                                <tr class:selected_row={selectedTemplate?.markerset_id === tmpl.markerset_id}
+                                    onclick={() => { selectedTemplate = tmpl; statusMessage = ""; }}
+                                    style="cursor:pointer">
+                                    <td>{tmpl.name}</td>
+                                    <td>{tmpl.markers.length}</td>
+                                    <td>
+                                        <button type="button" class="small_btn" onclick={(e) => { e.stopPropagation(); startEditTemplate(tmpl); }}>Edit</button>
+                                        <button type="button" class="small_btn delete_btn" onclick={(e) => { e.stopPropagation(); deleteTemplate(tmpl); }}>Delete</button>
+                                    </td>
                                 </tr>
                             {/each}
                         </tbody>
                     </table>
+                {/if}
+
+                <!-- Template detail -->
+                {#if selectedTemplate && editorMode !== "edit_template"}
+                    <div class="detail_box">
+                        <h4>{selectedTemplate.name}</h4>
+                        {#if selectedTemplate.description}<p class="desc_text">{selectedTemplate.description}</p>{/if}
+                        <table class="marker_table">
+                            <thead><tr><th>Marker</th><th>Weight</th><th>Transform</th><th>Missing</th><th>Active</th></tr></thead>
+                            <tbody>
+                                {#each selectedTemplate.markers as m}
+                                    <tr>
+                                        <td>{markerLabel(m)}</td>
+                                        <td>{m.weight}</td>
+                                        <td>{m.transform_type}{m.transform_window_hours ? ` (${m.transform_window_hours}h)` : ""}{m.transform_lag_hours ? ` lag ${m.transform_lag_hours}h` : ""}</td>
+                                        <td>{m.missing_data}</td>
+                                        <td>{m.active ? "✓" : "—"}</td>
+                                    </tr>
+                                {/each}
+                            </tbody>
+                        </table>
+                    </div>
                 {/if}
             </div>
-        {/if}
 
-        <!-- Datapoint detail panel -->
-        {#if selectedDataset}
-            <div id="detail_panel">
-                <h3>{selectedDataset.module_id} / {selectedDataset.marker_id}</h3>
+            <!-- RIGHT: Subject instances -->
+            <div class="panel">
+                <div class="panel_header">
+                    <h3>Subject Instances</h3>
+                    <div id="subject_row">
+                        <label for="sub_select">Subject</label>
+                        <select id="sub_select" bind:value={selectedSubject} onchange={() => loadInstances(selectedSubject)}>
+                            <option value="">-- select --</option>
+                            {#each subjects as s}
+                                <option value={s}>{s}</option>
+                            {/each}
+                        </select>
+                    </div>
+                </div>
 
-                <!-- Datapoint table -->
-                {#if datapoints.length === 0}
-                    <p class="empty_msg">No datapoints.</p>
-                {:else}
+                {#if selectedSubject}
+                    <div id="instance_actions">
+                        <button type="button" class="small_btn add_btn" onclick={() => startNewInstance(null)}>+ Custom instance</button>
+                        {#if selectedTemplate}
+                            <button type="button" class="small_btn add_btn" onclick={() => startNewInstance(selectedTemplate)}>
+                                + From "{selectedTemplate.name}"
+                            </button>
+                        {/if}
+                    </div>
+                {/if}
+
+                {#if instances.length === 0 && selectedSubject}
+                    <p class="empty_msg">No instances for {selectedSubject}.</p>
+                {:else if instances.length > 0}
                     <table>
-                        <thead>
-                            <tr><th>Timestamp</th><th>Value</th><th>Unit</th><th>Quality</th><th></th><th></th></tr>
-                        </thead>
+                        <thead><tr><th>Name</th><th>Markers</th><th>Template</th><th></th></tr></thead>
                         <tbody>
-                            {#each datapoints as dp}
-                                <tr class:editing_row={editingDp?.measured_at === dp.measured_at}>
-                                    <td>{dp.measured_at}</td>
-                                    <td>{dp.value}</td>
-                                    <td>{dp.unit}</td>
-                                    <td>{dp.data_quality}</td>
-                                    <td><button type="button" onclick={() => handleStartEdit(dp)}>Edit</button></td>
-                                    <td><button type="button" class="delete_btn" onclick={() =>
-handleDeleteDatapoint(dp.measured_at)}>Delete</button></td>
+                            {#each instances as inst}
+                                <tr class:selected_row={selectedInstance?.instance_id === inst.instance_id}
+                                    onclick={() => { selectedInstance = inst; statusMessage = ""; }}
+                                    style="cursor:pointer">
+                                    <td>{inst.name}</td>
+                                    <td>{inst.markers.length}</td>
+                                    <td>{inst.markerset_id ? "from template" : "custom"}</td>
+                                    <td>
+                                        <button type="button" class="small_btn" onclick={(e) => { e.stopPropagation(); startEditInstance(inst); }}>Edit</button>
+                                        <button type="button" class="small_btn delete_btn" onclick={(e) => { e.stopPropagation(); deleteInstance(inst); }}>Delete</button>
+                                    </td>
                                 </tr>
                             {/each}
                         </tbody>
                     </table>
                 {/if}
 
-                <!-- Edit datapoint -->
-                {#if editingDp}
-                    <div id="edit_section">
-                        <h4>Edit datapoint</h4>
-                        <div class="add_form">
-                            <label>Timestamp</label>
-                            <input type="datetime-local" bind:value={editTs}>
-
-                            <label>Value</label>
-                            <input type="number" step="any" bind:value={editValue}>
-
-                            <label>Unit</label>
-                            <input type="text" bind:value={editUnit}>
-
-                            <label>Data quality</label>
-                            <select bind:value={editQuality}>
-                                <option value="good">good</option>
-                                <option value="suspect">suspect</option>
-                                <option value="poor">poor</option>
-                            </select>
-
-                            <button type="button" onclick={handleEditSave}>Save</button>
-                            <button type="button" onclick={() => editingDp = null}>Cancel</button>
-                        </div>
+                <!-- Instance detail -->
+                {#if selectedInstance && editorMode !== "edit_instance"}
+                    <div class="detail_box">
+                        <h4>{selectedInstance.name}</h4>
+                        <table class="marker_table">
+                            <thead><tr><th>Marker</th><th>Weight</th><th>Transform</th><th>Missing</th><th>Active</th></tr></thead>
+                            <tbody>
+                                {#each selectedInstance.markers as m}
+                                    <tr>
+                                        <td>{markerLabel(m)}</td>
+                                        <td>{m.weight}</td>
+                                        <td>{m.transform_type}{m.transform_window_hours ? ` (${m.transform_window_hours}h)` : ""}{m.transform_lag_hours ? ` lag ${m.transform_lag_hours}h` : ""}</td>
+                                        <td>{m.missing_data}</td>
+                                        <td>{m.active ? "✓" : "—"}</td>
+                                    </tr>
+                                {/each}
+                            </tbody>
+                        </table>
                     </div>
                 {/if}
+            </div>
 
-                <!-- Add datapoint -->
-                <div id="add_section">
-                    <h4>Add datapoint</h4>
-                    <div id="add_tab_toggle">
-                        <button type="button" class:active={addTab === "form"} onclick={() => addTab =    
-"form"}>Form</button>
-                        <button type="button" class:active={addTab === "upload"} onclick={() => addTab =  
-"upload"}>Upload JSON</button>
-                    </div>
+        </div>
 
-                    {#if addTab === "form"}
-                        <div class="add_form">
-                            <label>Timestamp</label>
-                            <input type="datetime-local" bind:value={dpTimestamp}>
+        <!-- ── Editor panel ── -->
+        {#if editorMode !== null}
+            <div id="editor_panel">
+                <h3 id="editor_title">
+                    {editorMode === "new_template" ? "New Template"
+                     : editorMode === "edit_template" ? `Edit Template: ${selectedTemplate?.name}`
+                     : editorMode === "new_instance" ? "New Instance"
+                     : `Edit Instance: ${selectedInstance?.name}`}
+                </h3>
 
-                            <label>Value</label>
-                            <input type="number" step="any" bind:value={dpValue}>
-
-                            <label>Unit</label>
-                            <input type="text" bind:value={dpUnit}>
-
-                            <label>Data quality</label>
-                            <select bind:value={dpQuality}>
-                                <option value="good">good</option>
-                                <option value="suspect">suspect</option>
-                                <option value="poor">poor</option>
-                            </select>
-
-                            <button type="button" onclick={handleAddForm}>Add datapoint</button>
-                        </div>
-                    {:else}
-                        <div class="add_form">
-                            <label>JSON file</label>
-                            <input type="file" accept=".json" onchange={(e) => uploadFile = e.target.files[0]}>
-                            <button type="button" onclick={handleUpload}>Upload</button>
-                        </div>
+                <div id="editor_meta">
+                    <label>Name
+                        <input type="text" bind:value={editorName} placeholder="e.g. Metabolic Panel" />
+                    </label>
+                    {#if editorMode === "new_template" || editorMode === "edit_template"}
+                        <label>Description
+                            <input type="text" bind:value={editorDescription} placeholder="Optional description" />
+                        </label>
                     {/if}
                 </div>
+
+                <!-- Marker list in editor -->
+                <div id="editor_markers">
+                    <h4>Markers</h4>
+                    {#if editorMarkers.length === 0}
+                        <p class="empty_msg">No markers added yet.</p>
+                    {:else}
+                        <table id="editor_marker_table">
+                            <thead>
+                                <tr>
+                                    <th>Marker</th>
+                                    <th>Weight</th>
+                                    <th>Transform</th>
+                                    <th>Window (h)</th>
+                                    <th>Lag (h)</th>
+                                    <th>Missing data</th>
+                                    <th>Active</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {#each editorMarkers as m, i}
+                                    <tr>
+                                        <td>{markerLabel(m)}</td>
+                                        <td>
+                                            <input type="number" step="0.1" min="0" bind:value={editorMarkers[i].weight} class="narrow_input" />
+                                        </td>
+                                        <td>
+                                            <select bind:value={editorMarkers[i].transform_type} class="narrow_select">
+                                                <option value="none">none</option>
+                                                <option value="log">log</option>
+                                                <option value="rolling_avg">rolling_avg</option>
+                                                <option value="normalize">normalize</option>
+                                                <option value="lag">lag</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            {#if m.transform_type === "rolling_avg"}
+                                                <input type="number" step="1" min="1" bind:value={editorMarkers[i].transform_window_hours} class="narrow_input" placeholder="24" />
+                                            {:else}—{/if}
+                                        </td>
+                                        <td>
+                                            {#if m.transform_type === "lag"}
+                                                <input type="number" step="1" bind:value={editorMarkers[i].transform_lag_hours} class="narrow_input" placeholder="0" />
+                                            {:else}—{/if}
+                                        </td>
+                                        <td>
+                                            <select bind:value={editorMarkers[i].missing_data} class="narrow_select">
+                                                <option value="interpolate">interpolate</option>
+                                                <option value="forward_fill">forward_fill</option>
+                                                <option value="skip">skip</option>
+                                                <option value="zero">zero</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="checkbox" bind:checked={editorMarkers[i].active} />
+                                        </td>
+                                        <td>
+                                            <button type="button" class="small_btn delete_btn" onclick={() => removeMarkerFromEditor(i)}>✕</button>
+                                        </td>
+                                    </tr>
+                                {/each}
+                            </tbody>
+                        </table>
+                    {/if}
+
+                    <!-- Add marker row -->
+                    <div id="add_marker_row">
+                        <label>Module
+                            <select bind:value={addMarkerModule}>
+                                <option value="">-- module --</option>
+                                {#each modules as m}
+                                    <option value={m.module_id}>{m.module_name || m.module_id}</option>
+                                {/each}
+                            </select>
+                        </label>
+                        <label>Marker
+                            <select bind:value={addMarkerMarker} disabled={!addMarkerModule}>
+                                <option value="">-- marker --</option>
+                                {#each availableMarkersForAdd as mk}
+                                    <option value={mk.marker_id}>{mk.marker_name || mk.marker_id}</option>
+                                {/each}
+                            </select>
+                        </label>
+                        <button type="button" class="small_btn add_btn" onclick={addMarkerToEditor}>+ Add</button>
+                    </div>
+                </div>
+
+                <!-- Editor actions -->
+                <div id="editor_actions">
+                    <button type="button" class="save_btn" onclick={editorMode.includes("template") ? saveTemplate : saveInstance}>
+                        {editorMode.startsWith("new_") ? "Create" : "Save changes"}
+                    </button>
+                    <button type="button" onclick={cancelEditor}>Cancel</button>
+                </div>
+
             </div>
         {/if}
 
@@ -420,92 +591,185 @@ handleDeleteDatapoint(dp.measured_at)}>Delete</button></td>
 
 <style>
     #main_container {
-        border: 1px solid black;
-        background-color: rgb(255, 216, 216);
+        border: 1px solid #422800;
+        background-color: #f5f0e8;
         display: flex;
-        flex-wrap: wrap;
-        gap: 5px;
-        padding: 5px;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
     }
 
-    #subject_selector {
-        width: 100%;
+    #page_title {
+        font-size: 1.2em;
+        color: #422800;
     }
 
-    #new_dataset_row {
-        width: 100%;
+    #page_subtitle {
+        font-size: 0.85em;
+        color: #666;
+        font-style: italic;
+    }
+
+    #status_msg { font-weight: bold; color: green; }
+    #status_msg.error { color: red; }
+
+    /* Two-column panels */
+    #panels {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .panel {
+        border: 1px solid #422800;
+        background: white;
+        padding: 10px;
         display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .panel_header {
+        display: flex;
+        justify-content: space-between;
         align-items: center;
+        flex-wrap: wrap;
         gap: 6px;
     }
 
-    #status_msg {
-        width: 100%;
-        font-weight: bold;
+    .panel_header h3 { font-size: 1em; color: #422800; }
+
+    #subject_row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85em;
     }
 
-    #status_msg.error { color: red; }
+    #subject_row select { font-size: 0.9em; padding: 3px; }
 
-    #dataset_list, #detail_panel {
-        border: 1px solid black;
-        padding: 8px;
-        flex: 1;
-        min-width: 300px;
+    #instance_actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
     }
 
+    /* Tables */
     table {
         border-collapse: collapse;
         width: 100%;
+        font-size: 0.85em;
     }
 
     th, td {
         border: 1px solid #ccc;
-        padding: 4px 8px;
+        padding: 3px 6px;
         text-align: left;
     }
 
-    th { background-color: #eee; }
+    th { background: #f0e8d8; color: #422800; }
 
-    .selected_row { background-color: rgb(220, 235, 255); }
+    .selected_row { background-color: #d0e8ff; }
 
-    .delete_btn { background-color: rgb(255, 180, 180); }
-
-    .empty_msg { color: #888; font-style: italic; }
-
-    .editing_row { background-color: rgb(255, 250, 210); }
-
-    #edit_section {
-        margin-top: 12px;
-        border-top: 1px solid #ccc;
-        padding-top: 8px;
-    }
-
-    #add_section {
-        margin-top: 12px;
-        border-top: 1px solid #ccc;
-        padding-top: 8px;
-    }
-
-    #add_tab_toggle {
-        display: flex;
-        gap: 5px;
-        margin-bottom: 8px;
-    }
-
-    #add_tab_toggle button.active {
-        font-weight: bold;
-        text-decoration: underline;
-    }
-
-    .add_form {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 6px;
-        background-color: lightyellow;
-        padding: 8px;
+    .detail_box {
         border: 1px solid #ccc;
+        background: #fafafa;
+        padding: 8px;
+        font-size: 0.85em;
     }
 
-    .add_form input, .add_form select { width: 160px; }
+    .detail_box h4 { margin-bottom: 6px; color: #422800; }
+    .desc_text { color: #666; font-style: italic; margin-bottom: 6px; }
+
+    .marker_table th, .marker_table td { font-size: 0.85em; }
+
+    /* Editor */
+    #editor_panel {
+        border: 2px solid #422800;
+        border-radius: 6px;
+        background: #d0e8ff;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    #editor_title { font-size: 1em; color: #422800; }
+
+    #editor_meta {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 10px;
+    }
+
+    #editor_meta label {
+        display: grid;
+        gap: 4px;
+        font-size: 0.85em;
+    }
+
+    #editor_meta input {
+        padding: 4px;
+        border: 1px solid #422800;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+
+    #editor_markers h4 { font-size: 0.9em; color: #422800; margin-bottom: 6px; }
+
+    #editor_marker_table { font-size: 0.8em; }
+    #editor_marker_table th { background: #c8dcf5; }
+
+    .narrow_input  { width: 60px; padding: 2px 4px; font-size: 0.85em; }
+    .narrow_select { font-size: 0.8em; padding: 2px; }
+
+    #add_marker_row {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        margin-top: 8px;
+        padding: 8px;
+        background: #e8f4ff;
+        border: 1px solid #aac;
+        border-radius: 4px;
+    }
+
+    #add_marker_row label {
+        display: grid;
+        gap: 3px;
+        font-size: 0.8em;
+    }
+
+    #add_marker_row select {
+        font-size: 0.85em;
+        padding: 3px;
+        border: 1px solid #422800;
+        border-radius: 3px;
+    }
+
+    #editor_actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    /* Buttons */
+    button {
+        border-radius: 20px;
+        padding: 4px 12px;
+        cursor: pointer;
+        border: 1px solid #422800;
+        background: #fbeee0;
+        font-size: 0.85em;
+        box-shadow: 3px 3px 0 #422800;
+    }
+
+    button:hover { font-weight: bold; }
+    button:active { box-shadow: 1px 1px 0 #422800; transform: translate(1px, 1px); }
+
+    .small_btn { padding: 2px 8px; font-size: 0.8em; }
+    .add_btn   { background: rgb(114, 231, 114); }
+    .delete_btn { background: rgb(255, 180, 180); }
+    .save_btn  { background: rgb(114, 231, 114); font-weight: bold; }
+
+    .empty_msg { color: #888; font-style: italic; font-size: 0.85em; }
 </style>

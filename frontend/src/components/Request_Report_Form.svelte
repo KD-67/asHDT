@@ -17,8 +17,13 @@
     let subject_names = $state({});
     let modules = $state([]);
     let markers = $state([]);
+    let analysis_methods = $state([]);
+    let markerset_instances = $state([]);
 
     let selected_subject = $state("nothing");
+    let selected_method_id = $state("trajectory");
+    let input_mode = $state("single");     // "single" | "markerset"
+    let selected_markerset_id = $state("");
     let selected_module = $state("nothing");
     let selected_marker = $state("nothing");
     let selected_start_time = $state("2026-01-01T00:00");
@@ -28,6 +33,11 @@
     let selected_healthy_max = $state(1);
     let selected_vulnerability_margin = $state(0.1);
     let zone_reference_note = $state(null);
+
+    // ── Derived: selected method info ──────────────────────────────────────────
+    let selected_method = $derived(
+        analysis_methods.find(m => m.method_id === selected_method_id) ?? null
+    );
 
     async function loadSubjects() {
         loading = true;
@@ -89,10 +99,68 @@
         }
     }
 
+    async function loadAnalysisMethods() {
+        try {
+            const data = await gql(`query {
+                analysisMethods {
+                    methodId methodName description status
+                    acceptsSingleMarker acceptsMarkerset
+                    minMarkers maxMarkers paramsSchema outputType
+                }
+            }`);
+            analysis_methods = data.analysisMethods.map(m => ({
+                method_id:             m.methodId,
+                method_name:           m.methodName,
+                description:           m.description,
+                status:                m.status,
+                accepts_single_marker: m.acceptsSingleMarker,
+                accepts_markerset:     m.acceptsMarkerset,
+                params_schema:         m.paramsSchema,
+            }));
+        } catch (e) {
+            console.error("Failed to load analysis methods:", e);
+            // Fallback so the form stays functional
+            analysis_methods = [{
+                method_id:             "trajectory",
+                method_name:           "Trajectory Analysis",
+                description:           "Polynomial fit + 27-state classification.",
+                status:                "implemented",
+                accepts_single_marker: true,
+                accepts_markerset:     true,
+                params_schema:         "trajectory",
+            }];
+        }
+    }
+
+    async function loadMarkersetInstances(subjectId) {
+        if (!subjectId || subjectId === "nothing") { markerset_instances = []; return; }
+        try {
+            const data = await gql(
+                `query($s: String!) { markersetInstances(subjectId: $s) { instanceId name } }`,
+                { s: subjectId }
+            );
+            markerset_instances = data.markersetInstances.map(i => ({
+                instance_id: i.instanceId,
+                name:        i.name,
+            }));
+        } catch (e) {
+            console.error("Failed to load markerset instances:", e);
+            markerset_instances = [];
+        }
+    }
+
     function onModuleChange() {
         const module = modules.find(m => m.module_id === selected_module);
         markers = module ? module.markers : [];
         selected_marker = "";
+    }
+
+    function onSubjectChange() {
+        selected_module = "nothing";
+        selected_marker = "nothing";
+        selected_markerset_id = "";
+        zone_reference_note = null;
+        loadMarkersetInstances(selected_subject);
     }
 
     async function loadZoneReference() {
@@ -121,27 +189,51 @@
         submitting   = true;
         submitStatus = "Submitting analysis job...";
         try {
+            // Build the analysis input based on selected mode
+            let analysisInput;
+
+            if (input_mode === "markerset") {
+                if (!selected_markerset_id) throw new Error("Select a markerset.");
+                analysisInput = {
+                    subjectId:   selected_subject,
+                    method:      "TRAJECTORY",
+                    timeframe: {
+                        startTime: new Date(selected_start_time).toISOString(),
+                        endTime:   new Date(selected_end_time).toISOString(),
+                    },
+                    markersetId: selected_markerset_id,
+                    trajectoryParams: {
+                        polynomialDegree:    selected_polynomial_degree,
+                        // zone boundaries ignored for composite (resolved per-marker from DB)
+                        healthyMin:          0.0,
+                        healthyMax:          1.0,
+                        vulnerabilityMargin: selected_vulnerability_margin,
+                    },
+                };
+            } else {
+                // Single-marker mode
+                if (!selected_module || !selected_marker) throw new Error("Select a module and marker.");
+                analysisInput = {
+                    subjectId:  selected_subject,
+                    method:     "TRAJECTORY",
+                    timeframe: {
+                        startTime: new Date(selected_start_time).toISOString(),
+                        endTime:   new Date(selected_end_time).toISOString(),
+                    },
+                    markerRefs: [{ moduleId: selected_module, markerId: selected_marker }],
+                    trajectoryParams: {
+                        polynomialDegree:    selected_polynomial_degree,
+                        healthyMin:          selected_healthy_min,
+                        healthyMax:          selected_healthy_max,
+                        vulnerabilityMargin: selected_vulnerability_margin,
+                    },
+                };
+            }
+
             // 1. Enqueue the job
             const mutData = await gql(
                 `mutation($input: AnalysisInput!) { submitAnalysis(input: $input) { jobId status } }`,
-                {
-                    input: {
-                        subjectId:  selected_subject,
-                        moduleId:   selected_module,
-                        markerIds:  [selected_marker],
-                        method:     "TRAJECTORY",
-                        timeframe: {
-                            startTime: new Date(selected_start_time).toISOString(),
-                            endTime:   new Date(selected_end_time).toISOString(),
-                        },
-                        trajectoryParams: {
-                            polynomialDegree:    selected_polynomial_degree,
-                            healthyMin:          selected_healthy_min,
-                            healthyMax:          selected_healthy_max,
-                            vulnerabilityMargin: selected_vulnerability_margin,
-                        },
-                    },
-                }
+                { input: analysisInput }
             );
 
             const jobId = mutData.submitAnalysis.jobId;
@@ -224,6 +316,7 @@
 
     loadSubjects();
     loadModules();
+    loadAnalysisMethods();
 </script>
 
 <main style="--textColor: {textColor}; --borderColor: {borderColor}">
@@ -233,34 +326,80 @@
 
         <div id="report_form">
 
+            <!-- Row 0: Method selector -->
+            <div id="row_method">
+                <label>Analysis Method
+                    <select bind:value={selected_method_id}>
+                        {#each analysis_methods as m}
+                            <option
+                                value={m.method_id}
+                                disabled={m.status !== "implemented"}
+                                title={m.status !== "implemented" ? "Not yet implemented" : m.description}
+                            >
+                                {m.method_name}{m.status !== "implemented" ? " (coming soon)" : ""}
+                            </option>
+                        {/each}
+                    </select>
+                </label>
+                {#if selected_method}
+                    <p id="method_desc">{selected_method.description}</p>
+                {/if}
+            </div>
+
+            <!-- Row 1: Subject + input mode + marker/markerset selectors -->
             <div id="row_selectors">
                 <label>Subject
-                    <select bind:value={selected_subject}>
+                    <select bind:value={selected_subject} onchange={onSubjectChange}>
+                        <option value="nothing">-- select subject --</option>
                         {#each subjects as subject}
                             <option value={subject}>{subject_names[subject] ?? subject}</option>
                         {/each}
                     </select>
                 </label>
 
-                <label>Module
-                    <select bind:value={selected_module} disabled={!selected_subject} onchange={onModuleChange}>
-                        <option value="">-- select module --</option>
-                        {#each modules as module}
-                            <option value={module.module_id}>{module.module_name || module.module_id}</option>
-                        {/each}
-                    </select>
-                </label>
+                {#if selected_method?.accepts_markerset && selected_method?.accepts_single_marker}
+                    <label>Input mode
+                        <select bind:value={input_mode}>
+                            <option value="single">Single marker</option>
+                            <option value="markerset">Saved markerset</option>
+                        </select>
+                    </label>
+                {:else if selected_method?.accepts_markerset && !selected_method?.accepts_single_marker}
+                    <!-- Force markerset mode -->
+                    {#if input_mode !== "markerset"}{input_mode = "markerset"}{/if}
+                {/if}
 
-                <label>Marker
-                    <select bind:value={selected_marker} disabled={!selected_module} onchange={loadZoneReference}>
-                        <option value="">-- select marker --</option>
-                        {#each markers as marker}
-                            <option value={marker.marker_id}>{marker.marker_name || marker.marker_id}</option>
-                        {/each}
-                    </select>
-                </label>
+                {#if input_mode === "markerset"}
+                    <label>Markerset
+                        <select bind:value={selected_markerset_id} disabled={!selected_subject || selected_subject === "nothing"}>
+                            <option value="">-- select markerset --</option>
+                            {#each markerset_instances as ms}
+                                <option value={ms.instance_id}>{ms.name}</option>
+                            {/each}
+                        </select>
+                    </label>
+                {:else}
+                    <label>Module
+                        <select bind:value={selected_module} disabled={!selected_subject || selected_subject === "nothing"} onchange={onModuleChange}>
+                            <option value="">-- select module --</option>
+                            {#each modules as module}
+                                <option value={module.module_id}>{module.module_name || module.module_id}</option>
+                            {/each}
+                        </select>
+                    </label>
+
+                    <label>Marker
+                        <select bind:value={selected_marker} disabled={!selected_module} onchange={loadZoneReference}>
+                            <option value="">-- select marker --</option>
+                            {#each markers as marker}
+                                <option value={marker.marker_id}>{marker.marker_name || marker.marker_id}</option>
+                            {/each}
+                        </select>
+                    </label>
+                {/if}
             </div>
 
+            <!-- Row 2: Timeframe + polynomial degree -->
             <div id="row_timeframe">
                 <label>From
                     <input type="datetime-local" bind:value={selected_start_time} required />
@@ -273,20 +412,34 @@
                 </label>
             </div>
 
-            <div id="row_zones">
-                <span id="zone_label">Zone Boundaries</span>
-                {#if zone_reference_note}<p id="zone_reference_note">{zone_reference_note}</p>{/if}
-                <label>Healthy minimum
-                    <input type="number" bind:value={selected_healthy_min} required />
-                </label>
-                <label>Healthy maximum
-                    <input type="number" bind:value={selected_healthy_max} required />
-                </label>
-                <label>Vulnerability margin
-                    <input type="number" bind:value={selected_vulnerability_margin} required />
-                </label>
-            </div>
+            <!-- Row 3: Trajectory params (zone boundaries) -->
+            {#if selected_method?.params_schema === "trajectory"}
+                <div id="row_zones">
+                    <span id="zone_label">
+                        {input_mode === "markerset"
+                            ? "Trajectory Parameters (zone boundaries resolved per-marker from DB)"
+                            : "Zone Boundaries"}
+                    </span>
+                    {#if zone_reference_note && input_mode === "single"}
+                        <p id="zone_reference_note">{zone_reference_note}</p>
+                    {/if}
 
+                    {#if input_mode === "single"}
+                        <label>Healthy minimum
+                            <input type="number" bind:value={selected_healthy_min} required />
+                        </label>
+                        <label>Healthy maximum
+                            <input type="number" bind:value={selected_healthy_max} required />
+                        </label>
+                    {/if}
+
+                    <label>Vulnerability margin
+                        <input type="number" bind:value={selected_vulnerability_margin} required />
+                    </label>
+                </div>
+            {/if}
+
+            <!-- Row 4: Actions -->
             <div id="row_submit">
                 <button type="button" onclick={async () => {
                     if (profile_visible) { profile_visible = false; return; }
@@ -412,9 +565,29 @@
         background: transparent;
     }
 
+    #row_method {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--borderColor);
+    }
+
+    #row_method label {
+        flex-shrink: 0;
+        min-width: 200px;
+    }
+
+    #method_desc {
+        font-size: 0.8em;
+        color: #555;
+        font-style: italic;
+        flex: 1;
+    }
+
     #row_selectors {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
         gap: 10px;
     }
 

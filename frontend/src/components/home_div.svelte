@@ -14,7 +14,7 @@
                 <div class="functional_file">request_report_form.svelte</div>
                 <div class="functional_file">subject_management.svelte</div>
                 <div class="functional_file">add_module_page.svelte</div>
-                <div class="functional_file">dataset_management.svelte</div>
+                <div class="functional_file new_file">dataset_management.svelte <span class="badge">markerset builder</span></div>
                 <div class="functional_file">help.svelte</div>
                 <div>timegraph_report_page.svelte
                     <div class="functional_file">timegraph_chart.svelte</div>
@@ -29,7 +29,10 @@
                 <div>
                     <span>startup</span>
                     <div class="functional_file">module_loader.py</div>
+                    <div class="functional_file new_file">analysis_loader.py</div>
                     <div class="functional_file">database_logistics.py</div>
+                    <div class="functional_file">module_list.json</div>
+                    <div class="functional_file new_file">analysis_list.json</div>
                 </div>
                 <div>
                     <span>graphql</span>
@@ -48,6 +51,7 @@
                         <div class="functional_file">module.py</div>
                         <div class="functional_file">datapoint.py</div>
                         <div class="functional_file">analysis.py</div>
+                        <div class="functional_file new_file">markerset.py</div>
                     </div>
                 </div>
                 <div id="core">
@@ -55,10 +59,12 @@
                     <div class="backend_core" id="analysis">
                         <span>analysis</span>
                         <div class="functional_file">trajectory_computer.py</div>
+                        <div class="functional_file new_file">composite_builder.py</div>
                     </div>
                     <div class="backend_core" id="storage">
                         <span>storage</span>
                         <div class="functional_file">data_reader.py</div>
+                        <div class="functional_file new_file">markerset_reader.py</div>
                     </div>
                     <div class="backend_core" id="output">
                         <span>output</span>
@@ -79,6 +85,8 @@
                 <div class="functional_file">table: zone_references</div>
                 <div class="functional_file">table: modules</div>
                 <div class="functional_file">table: markers</div>
+                <div class="functional_file new_file">table: markerset_templates</div>
+                <div class="functional_file new_file">table: markerset_instances</div>
                 <div class="functional_file">table: {"{subject}__{module}__{marker}"} (dynamic)</div>
             </div>
 
@@ -97,19 +105,25 @@
             <p>The frontend is built with <strong>Svelte</strong>, a framework for building interactive web pages. Each <code>.svelte</code> file is a self-contained page or component. Navigation between pages happens via URL hash (e.g. <code>#subject_management</code>). The frontend talks to the backend by sending <strong>GraphQL</strong> requests — a structured way of asking for exactly the data it needs, nothing more.</p>
 
             <h5>Backend</h5>
-            <p>The backend is a <strong>Python</strong> server built with <strong>FastAPI</strong>. When it starts up, it reads data from the filesystem and syncs it into a local <strong>SQLite</strong> database (a simple file-based database). It then exposes a <strong>GraphQL API</strong> at <code>/graphql</code> — this is the single endpoint the frontend talks to for all reads and writes (fetching subjects, uploading data, requesting reports, etc.).</p>
+            <p>The backend is a <strong>Python</strong> server built with <strong>FastAPI</strong>. When it starts up, it reads data from the filesystem and syncs it into a local <strong>SQLite</strong> database (a simple file-based database). It loads two JSON registries: <code>module_list.json</code> (the module/marker catalog) and <code>analysis_list.json</code> (the analysis method registry). It then exposes a <strong>GraphQL API</strong> at <code>/graphql</code> — the single endpoint the frontend uses for all reads and writes.</p>
 
             <h5>Analysis jobs</h5>
-            <p>Running a trajectory analysis is slow, so it happens asynchronously — meaning the server doesn't freeze while it works. When you request a report, the backend puts a job into a queue managed by <strong>Redis</strong> (a fast in-memory data store). A separate <strong>worker process</strong> (ARQ) picks up the job and runs the analysis pipeline: reading raw data files → computing the trajectory → saving the report. While this runs, the frontend receives live progress updates via a <strong>WebSocket</strong> connection (a persistent two-way channel, as opposed to normal one-shot HTTP requests).</p>
+            <p>Running an analysis is slow, so it happens asynchronously. When you request a report, the backend puts a job into a queue managed by <strong>Redis</strong>. A separate <strong>worker process</strong> (ARQ) picks it up and runs the pipeline. While this runs, the frontend receives live progress updates via a <strong>WebSocket</strong> connection.</p>
 
-            <h5>Core analysis pipeline</h5>
-            <p><strong>data_reader.py</strong> reads raw JSON measurement files from the filesystem. <strong>trajectory_computer.py</strong> normalises the raw values into a health score (1 = optimal, 0 = edge of healthy range, negative = outside), fits a polynomial curve to the data using <strong>NumPy</strong>, and classifies each point into one of 27 trajectory states based on its value, slope, and curvature. <strong>report_generator.py</strong> saves the result both as a JSON file and as a row in the SQLite database.</p>
+            <h5>Analysis pipeline — single marker</h5>
+            <p><strong>data_reader.py</strong> reads raw JSON measurement files from the filesystem. <strong>trajectory_computer.py</strong> normalises the raw values into a health score (h=1 optimal, h=0 boundary, h&lt;0 outside), fits a polynomial via NumPy, and classifies each point into one of 27 trajectory states based on value, slope, and curvature. <strong>report_generator.py</strong> saves the result as JSON and as a row in SQLite.</p>
+
+            <h5>Analysis pipeline — markerset (multi-marker)</h5>
+            <p>A <strong>markerset</strong> is a named, saved composition of markers with per-marker feature-engineering config (weight, transform, missing-data strategy). <strong>markerset_reader.py</strong> resolves a saved instance into a fully-configured marker list, fetching per-marker zone boundaries from the DB. <strong>composite_builder.py</strong> applies transforms, normalises each marker to its h score, aligns all markers to a shared time grid, and computes a weighted composite h. This composite is fed into the same trajectory_computer — output shape is identical to single-marker.</p>
+
+            <h5>Analysis method registry</h5>
+            <p><code>analysis_list.json</code> defines all known methods (trajectory, PCA, automated, etc.) with their status (<em>implemented</em> vs <em>stub</em>), accepted input types, and parameter schemas. The frontend's method dropdown is built dynamically from this registry — stub methods appear greyed out. Adding a new method requires only adding an entry here, writing a worker task, and wiring it up in mutations.py.</p>
 
             <h5>Database</h5>
-            <p>The SQLite database stores structured records: subjects, modules, markers, zone reference ranges, and report metadata. Raw measurement data lives as JSON files on the filesystem rather than in the database, keeping the database lightweight.</p>
+            <p>The SQLite database stores: subjects, modules, markers, zone reference ranges, report metadata, <strong>markerset templates</strong> (global reusable compositions), and <strong>markerset instances</strong> (per-subject bindings with optional overrides). Raw measurement data lives as JSON files on the filesystem.</p>
 
             <h5>Redis</h5>
-            <p>Redis serves two roles: it holds the <strong>job queue</strong> (the list of pending analysis jobs) and acts as a <strong>pub/sub message bus</strong> — the worker publishes progress updates to a channel named after the job ID, and the backend's subscription resolver forwards those updates to the browser over WebSocket in real time.</p>
+            <p>Redis serves two roles: it holds the <strong>job queue</strong> (pending analysis jobs) and acts as a <strong>pub/sub message bus</strong> — the worker publishes progress to a channel named after the job ID, and the subscription resolver forwards those updates to the browser over WebSocket in real time.</p>
         </div>
 
     </div>
@@ -146,6 +160,25 @@
 
     .functional_file {
         background-color: aquamarine;
+    }
+
+    .new_file {
+        background-color: rgb(180, 255, 200);
+        border-color: rgb(0, 160, 80);
+        position: relative;
+    }
+
+    .badge {
+        display: inline-block;
+        background-color: rgb(0, 140, 70);
+        color: white;
+        font-size: 0.7em;
+        font-weight: normal;
+        padding: 1px 5px;
+        border-radius: 3px;
+        margin-left: 4px;
+        vertical-align: middle;
+        border: none;
     }
 
     #database {
