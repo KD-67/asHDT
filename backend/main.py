@@ -33,7 +33,7 @@ app.add_middleware(
 )
 
 # ── GraphQL router ─────────────────────────────────────────────────────────────
-# Mounted at /graphql alongside REST. GraphiQL IDE available at /graphql in browser.
+# GraphiQL IDE available at /graphql in browser.
 # Subscriptions (jobStatus) are served over WebSocket at ws://localhost:8000/graphql.
 from strawberry.fastapi import GraphQLRouter
 from backend.graphql.schema import schema
