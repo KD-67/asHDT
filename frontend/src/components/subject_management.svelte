@@ -16,8 +16,9 @@
     import CancelIcon from "../assets/cancel_icon.svg?raw";
 
     import { onMount } from "svelte";
-    import { createSubject, updateSubject, deleteSubject, fetchDatasets, fetchDatapoints, addDatapoint, updateDatapoint, deleteDatapoint, uploadDatapoint, deleteDataset } from "../lib/api.js";
-    import { appState, ensureSubjectsLoaded, ensureModulesLoaded, storeAddSubject, storeUpdateSubject, storeRemoveSubject } from "../lib/stores.svelte.js";
+    import { fetchDatasets, fetchDatapoints, addDatapoint, updateDatapoint, deleteDatapoint, uploadDatapoint, deleteDataset } from "../lib/api.js";
+    import { createSubject, updateSubject, deleteSubject } from "../lib/services.js";
+    import { appState, ensureSubjectsLoaded, ensureModulesLoaded } from "../lib/stores.svelte.js";
 
     // Mode: "view" or "add"
     let mode = $state("view");
@@ -67,6 +68,8 @@
     let statusMessage = $state("");
     let statusOk = $state(true);
 
+    // --- Functions ---
+
     onMount(() => {
         ensureSubjectsLoaded();
         ensureModulesLoaded();
@@ -106,9 +109,9 @@
 
     function toggleEditSubject(s) {
         if (editingSubject === s.subject_id) {
-            editingSubject = null;
-            editSubject = { first_name: "", last_name: "", sex: "", dob: "", email: "", phone: "", notes: "", created_at: "" };
+            collapseSubject();
         } else {
+            collapseSubject();
             editingSubject = s.subject_id;
             editSubject = { ...s };
         }
@@ -117,26 +120,9 @@
 
     async function handleEditSubject(subject_id) {
         try {
-            await updateSubject(subject_id, {
-                firstName: editSubject.first_name,
-                lastName:  editSubject.last_name,
-                sex:       editSubject.sex,
-                dob:       editSubject.dob,
-                email:     editSubject.email,
-                phone:     editSubject.phone,
-                notes:     editSubject.notes,
-            });
+            await updateSubject(subject_id, editSubject);
             setStatus(`Subject "${subject_id}" updated.`);
             editingSubject = null;
-            storeUpdateSubject(subject_id, {
-                first_name: editSubject.first_name,
-                last_name:  editSubject.last_name,
-                sex:        editSubject.sex,
-                dob:        editSubject.dob,
-                email:      editSubject.email,
-                phone:      editSubject.phone,
-                notes:      editSubject.notes,
-            });
         } catch (e) {
             setStatus(`Error: ${e.message}`, false);
         }
@@ -148,7 +134,6 @@
             await deleteSubject(subject_id);
             setStatus(`Subject "${subject_id}" deleted.`);
             collapseSubject();
-            storeRemoveSubject(subject_id);
         } catch (e) {
             setStatus(`Error: ${e.message}`, false);
         }
@@ -156,13 +141,8 @@
 
     async function handleCreate() {
         try {
-            const subjectId = await createSubject({ firstName: first_name, lastName: last_name, sex, dob, email, phone, notes });
+            const subjectId = await createSubject({ first_name, last_name, sex, dob, email, phone, notes });
             setStatus(`Subject created: ${subjectId}`);
-            storeAddSubject({
-                subject_id: subjectId,
-                first_name, last_name, sex, dob, email, phone, notes,
-                created_at: new Date().toISOString(),
-            });
             first_name = ""; last_name = ""; sex = ""; dob = "";
             email = ""; phone = ""; notes = "";
             mode = "view";
@@ -358,12 +338,9 @@
                                 onclick={(e) => {
                                     e.stopPropagation();
                                     if (expandedSubject === s.subject_id) {
-                                        expandedSubject = null;
+                                        collapseSubject();
                                     } else {
-                                        datasetsSubject = null;
-                                        selectedDataset = null;
-                                        datasets = [];
-                                        datapoints = [];
+                                        collapseSubject();
                                         expandedSubject = s.subject_id;
                                     }
                                 }}>

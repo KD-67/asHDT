@@ -381,7 +381,6 @@
     /* LAYOUT */
 
     #main_container {
-        border: 1px solid var(--borderColor);
         display: flex;
         flex-direction: column;
         gap: 10px;

@@ -16,8 +16,9 @@
       import LevelsIcon from "../assets/levels_icon.svg?raw";
 
       import { onMount } from "svelte";
-      import { createModule, updateModule, deleteModule, createMarker, updateMarker, deleteMarker, fetchDemographicZones, addDemographicZone, updateDemographicZone, deleteDemographicZone } from "../lib/api.js";
-      import { appState, ensureModulesLoaded, storeAddModule, storeUpdateModule, storeRemoveModule, storeAddMarker, storeUpdateMarker, storeRemoveMarker } from "../lib/stores.svelte.js";
+      import { fetchDemographicZones, addDemographicZone, updateDemographicZone, deleteDemographicZone } from "../lib/api.js";
+      import { createModule, updateModule, deleteModule, createMarker, updateMarker, deleteMarker } from "../lib/services.js";
+      import { appState, ensureModulesLoaded } from "../lib/stores.svelte.js";
 
       let mode = $state("view");
       let statusMessage = $state("");
@@ -44,6 +45,9 @@
       let editingMarker = $state(null); // { module_id, marker_id }
       let editMarker = $state(emptyMarker());
 
+      // Expanded marker description
+      let expandedMarkerDescription = $state(null); // { module_id, marker_id } or null
+
       // Demographic zone refs
       let expandedZoneRef = $state(null); // { module_id, marker_id } or null
       let zoneRefRows = $state([]);
@@ -68,8 +72,7 @@
       async function handleCreateModule() {
           if (!new_module_id.trim()) { setStatus("Module ID is required.", false); return; }
           try {
-              await createModule({ moduleId: new_module_id.trim(), moduleName: new_module_name.trim(), description: new_module_description.trim() });
-              storeAddModule({ module_id: new_module_id.trim(), module_name: new_module_name.trim(), description: new_module_description.trim(), markers: [] });
+              await createModule({ module_id: new_module_id.trim(), module_name: new_module_name.trim(), description: new_module_description.trim() });
               setStatus(`Module "${new_module_id}" created.`);
               new_module_id = ""; new_module_name = ""; new_module_description = "";
               mode = "view";
@@ -80,10 +83,9 @@
 
       function toggleEditModule(mod) {
           if (editingModule === mod.module_id) {
-              editingModule = "";
-              editModuleName = "";
-              editModuleDescription = "";
+              collapseModule();
           } else {
+              collapseModule();
               editingModule = mod.module_id;
               editModuleName = mod.module_name ?? "";
               editModuleDescription = mod.description;
@@ -93,8 +95,7 @@
 
       async function handleEditModule(module_id) {
           try {
-              await updateModule(module_id, { moduleName: editModuleName, description: editModuleDescription });
-              storeUpdateModule(module_id, { module_name: editModuleName, description: editModuleDescription });
+              await updateModule(module_id, { module_name: editModuleName, description: editModuleDescription });
               setStatus(`Module "${module_id}" updated.`);
               editingModule = "";
           } catch (e) {
@@ -108,7 +109,6 @@
               await deleteModule(module_id);
               setStatus(`Module "${module_id}" deleted.`);
               if (expandedModule === module_id) collapseModule();
-              storeRemoveModule(module_id);
           } catch (e) {
               setStatus(`Error: ${e.message}`, false);
           }
@@ -117,37 +117,18 @@
       // --- Marker actions ---
 
       function startAddMarker(module_id) {
+          collapseMarkerPanels();
           addingMarkerTo = module_id;
-          newMarker = emptyMarker();
           statusMessage = "";
       }
 
       async function handleAddMarker(module_id) {
-          const hMin    = parseFloat(newMarker.healthy_min);
-          const hMax    = parseFloat(newMarker.healthy_max);
-          const vMargin = parseFloat(newMarker.vulnerability_margin);
-          if (isNaN(hMin) || isNaN(hMax) || isNaN(vMargin)) {
+          if (isNaN(parseFloat(newMarker.healthy_min)) || isNaN(parseFloat(newMarker.healthy_max)) || isNaN(parseFloat(newMarker.vulnerability_margin))) {
               setStatus("Healthy min, max, and vulnerability margin must be numbers.", false);
               return;
           }
           try {
-              await createMarker(module_id, {
-                  markerId:            newMarker.marker_id.trim(),
-                  markerName:          newMarker.marker_name.trim(),
-                  description:         newMarker.description.trim(),
-                  unit:                newMarker.unit.trim(),
-                  volatilityClass:     newMarker.volatility_class.trim(),
-                  healthyMin:          hMin,
-                  healthyMax:          hMax,
-                  vulnerabilityMargin: vMargin,
-              });
-              storeAddMarker(module_id, {
-                  marker_id:        newMarker.marker_id.trim(),
-                  marker_name:      newMarker.marker_name.trim(),
-                  description:      newMarker.description.trim(),
-                  unit:             newMarker.unit.trim(),
-                  volatility_class: newMarker.volatility_class.trim(),
-              });
+              await createMarker(module_id, newMarker);
               setStatus(`Marker "${newMarker.marker_id}" added to "${module_id}".`);
               addingMarkerTo = "";
           } catch (e) {
@@ -157,9 +138,9 @@
 
       function toggleEditMarker(module_id, mk) {
           if (editingMarker?.module_id === module_id && editingMarker?.marker_id === mk.marker_id) {
-              editingMarker = null;
-              editMarker = emptyMarker();
+              collapseMarkerPanels();
           } else {
+              collapseMarkerPanels();
               editingMarker = { module_id, marker_id: mk.marker_id };
               editMarker = { ...mk };
           }
@@ -168,21 +149,7 @@
 
       async function handleEditMarker(module_id, marker_id) {
           try {
-              await updateMarker(module_id, marker_id, {
-                  markerName:          editMarker.marker_name,
-                  description:         editMarker.description,
-                  unit:                editMarker.unit,
-                  volatilityClass:     editMarker.volatility_class,
-                  healthyMin:          parseFloat(editMarker.healthy_min),
-                  healthyMax:          parseFloat(editMarker.healthy_max),
-                  vulnerabilityMargin: parseFloat(editMarker.vulnerability_margin),
-              });
-              storeUpdateMarker(module_id, marker_id, {
-                  marker_name:      editMarker.marker_name,
-                  description:      editMarker.description,
-                  unit:             editMarker.unit,
-                  volatility_class: editMarker.volatility_class,
-              });
+              await updateMarker(module_id, marker_id, editMarker);
               setStatus(`Marker "${marker_id}" updated.`);
               editingMarker = null;
           } catch (e) {
@@ -194,14 +161,10 @@
 
       async function toggleZoneRef(module_id, marker_id) {
           if (expandedZoneRef?.module_id === module_id && expandedZoneRef?.marker_id === marker_id) {
-              expandedZoneRef = null;
-              zoneRefRows = [];
-              addingDemoZone = false;
-              editingDemoZone = null;
+              collapseMarkerPanels();
           } else {
+              collapseMarkerPanels();
               expandedZoneRef = { module_id, marker_id };
-              addingDemoZone = false;
-              editingDemoZone = null;
               await loadZoneRefs(module_id, marker_id);
           }
       }
@@ -262,30 +225,33 @@
           if (!confirm(`Delete marker "${marker_id}" from "${module_id}"?`)) return;
           try {
               await deleteMarker(module_id, marker_id);
-              storeRemoveMarker(module_id, marker_id);
               setStatus(`Marker "${marker_id}" deleted.`);
           } catch (e) {
               setStatus(`Error: ${e.message}`, false);
           }
       }
 
+      function collapseMarkerPanels() {
+          editingMarker = null;
+          editMarker = emptyMarker();
+          addingMarkerTo = "";
+          newMarker = emptyMarker();
+          expandedMarkerDescription = null;
+          expandedZoneRef = null;
+          zoneRefRows = [];
+          addingDemoZone = false;
+          newDemoZone = { sex: "M", age: "", healthy_min: "", healthy_max: "", vulnerability_margin: "" };
+          editingDemoZone = null;
+          editDemoZone = { healthy_min: "", healthy_max: "", vulnerability_margin: "" };
+      }
+
       function collapseModule() {
-            expandedModule = "";
-            editingModule = "";
-            editModuleName = "";
-            editModuleDescription = "";
-            addingMarkerTo = "";
-            newMarker = emptyMarker();  
-            editingMarker = null;
-            editMarker = emptyMarker();
-            expandedZoneRef = null;
-            zoneRefRows = [];
-            addingDemoZone = false;
-            newDemoZone = { sex: "M", age: "", healthy_min: "", healthy_max: "", vulnerability_margin:  
-        "" };
-            editingDemoZone = null;
-            editDemoZone = { healthy_min: "", healthy_max: "", vulnerability_margin: "" };
-        }
+          expandedModule = "";
+          editingModule = "";
+          editModuleName = "";
+          editModuleDescription = "";
+          collapseMarkerPanels();
+      }
         
   </script>
 
@@ -300,7 +266,6 @@
               <p id="status_msg" class:error={!statusOk}>{statusMessage}</p>
             {/if}
           </div>
-
 
             <div id="viewbox">
                 <div class="main_header_container">
@@ -338,12 +303,34 @@
                               {/if}
                               
                               {#each mod.markers as mk}
-                                  <div style="--cardSectionColor: {cardSectionColor}" class="marker_row">
-                                      <span class="marker_id">{mk.marker_name || mk.marker_id}</span>
-                                      <span class="marker_meta">{mk.description} — {mk.unit} ({mk.volatility_class})</span>
-                                      <button style="--editBtnColor: {editBtnColor}" type="button" class="edit_btn" onclick={(e) => {e.stopPropagation(); toggleEditMarker(mod.module_id, mk)}}>{@html EditIcon}</button>
-                                      <button style="--zoneRefBtnColor: {zoneRefBtnColor}" type="button" id="zone_refs_btn" onclick={(e) => {e.stopPropagation(); toggleZoneRef(mod.module_id, mk.marker_id)}}>{@html LevelsIcon}</button>
-                                      <button style="--deleteBtnColor: {deleteBtnColor}" type="button" class="delete_btn" onclick={(e) => {e.stopPropagation(); handleDeleteMarker(mod.module_id, mk.marker_id)}}>{@html DeleteIcon}</button>
+                                  <div style="--cardSectionColor: {cardSectionColor}" class="marker_row" role="button" tabindex="0"
+                                      onclick={(e) => {
+                                          e.stopPropagation();
+                                          const isOpen = expandedMarkerDescription?.module_id === mod.module_id && expandedMarkerDescription?.marker_id === mk.marker_id;
+                                          expandedMarkerDescription = isOpen ? null : { module_id: mod.module_id, marker_id: mk.marker_id };
+                                      }}
+                                      onkeydown={(e) => {
+                                          if (e.key === 'Enter') {
+                                              e.stopPropagation();
+                                              const isOpen = expandedMarkerDescription?.module_id === mod.module_id && expandedMarkerDescription?.marker_id === mk.marker_id;
+                                              expandedMarkerDescription = isOpen ? null : { module_id: mod.module_id, marker_id: mk.marker_id };
+                                          }
+                                      }}>
+                                      <div class="marker_header_container">
+                                        <span class="marker_id">{mk.marker_name || mk.marker_id}</span>
+                                      </div>
+                                      
+                                      <div class="marker_buttons">
+                                          <button style="--editBtnColor: {editBtnColor}" type="button" class="edit_btn" onclick={(e) => {e.stopPropagation(); toggleEditMarker(mod.module_id, mk)}}>{@html EditIcon}</button>
+                                          <button style="--zoneRefBtnColor: {zoneRefBtnColor}" type="button" id="zone_refs_btn" onclick={(e) => {e.stopPropagation(); toggleZoneRef(mod.module_id, mk.marker_id)}}>{@html LevelsIcon}</button>
+                                          <button style="--deleteBtnColor: {deleteBtnColor}" type="button" class="delete_btn" onclick={(e) => {e.stopPropagation(); handleDeleteMarker(mod.module_id, mk.marker_id)}}>{@html DeleteIcon}</button>
+                                      </div>
+                                      
+                                      {#if expandedMarkerDescription?.module_id === mod.module_id && expandedMarkerDescription?.marker_id === mk.marker_id}
+                                         <div class="marker_meta_container">
+                                            <span class="marker_meta">{mk.description} — {mk.unit} ({mk.volatility_class})</span>
+                                        </div>
+                                      {/if}
                                   </div>
 
                                   {#if expandedZoneRef?.module_id === mod.module_id && expandedZoneRef?.marker_id === mk.marker_id}
@@ -617,7 +604,7 @@
         border-radius: 0.5rem;
         background-color: var(--cardColor);
         box-shadow: 5px 5px 0px var(--borderColor);
-        margin: 5px;
+        margin: 4px;
         padding: 8px;
         grid-template-rows: auto auto auto auto;
         grid-template-columns: 50% 50%;
@@ -649,7 +636,7 @@
         grid-area: 1 / 2 / 2 / 3; 
         display: flex; 
         justify-content: flex-end;
-        gap: 5px; 
+        gap: 4px; 
     }
 
     /* .markers_header_container {
@@ -660,35 +647,57 @@
         grid-area: 4 / 1 / 5 / 3;
         display: grid;
         border-top: 2px solid var(--borderColor);
-        margin-top: 10px;
+        margin-top: 8px;
         padding-top: 0;
     }
 
     .markers_section_header {
-        padding-left: 10px;
+        padding: 4px 8px;
     }
 
     .marker_row {
-        display: flex;
-        align-items: center;
+        display: grid;
+        grid-template: auto auto / auto auto;
         border: 2px solid var(--borderColor);
         border-radius: 0.5rem;
         box-shadow: 5px 5px 0px var(--borderColor);
         gap: 8px;
-        padding: 3px 3px;
+        padding: 4px 4px;
         background-color: var(--cardSectionColor);
-        margin: 5px 5px;
+        margin: 4px 4px;
+        cursor: pointer;
     }
 
-    .marker_id { 
-        font-weight: bold; 
-        min-width: 120px; 
+    .marker_header_container {
+        grid-area: 1 / 1 / 2 / 2;
+        display: flex;
+        align-items: center;
     }
-    
-    .marker_meta { 
-        flex: 1; 
-        color: #555; 
-        font-size: 0.9em; 
+
+    .marker_id {
+        font-weight: bold;
+        flex: 1;
+        min-width: 120px;
+    }
+
+    .marker_buttons {
+
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    .marker_meta_container {
+        grid-area: 2 / 1 / 3 / 3;
+        padding: 8px 4px;
+    }
+
+    .marker_meta {
+        width: 100%;
+        padding: 8px 4px;
+        border-top: 1px solid rgba(0,0,0,0.1);
+        color: #555;
+        font-size: 0.9em;
     }
 
     .no_markers { 
