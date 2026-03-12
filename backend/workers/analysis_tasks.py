@@ -2,13 +2,6 @@
 #
 # Each function here is a standalone async task that runs in a separate worker
 # process (started with: arq backend.workers.settings.WorkerSettings).
-#
-# HOW TO ADD A NEW ANALYSIS METHOD:
-#   1. Add a new async function here following the same pattern
-#   2. Register it in WorkerSettings.functions (settings.py)
-#   3. Add the enum value to AnalysisMethod in types/analysis.py
-#   4. Handle it in the submit_analysis mutation (mutations.py)
-#   5. Define its result type and add it to the AnalysisResult union (types/analysis.py)
 
 from __future__ import annotations
 import json

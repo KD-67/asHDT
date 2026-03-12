@@ -8,7 +8,6 @@ from strawberry.exceptions import GraphQLError
 from backend.graphql.context import AppContext
 from backend.graphql.analysis.types import (
     AnalysisInput,
-    AnalysisMethod,
     AnalysisJob,
     JobStatus,
 )
@@ -46,14 +45,8 @@ class AnalysisMutations:
                 "Exactly one of markerset_id or marker_refs must be provided."
             )
 
-        if input.method == AnalysisMethod.TRAJECTORY:
-            if input.trajectory_params is None:
-                raise GraphQLError("trajectory_params is required when method=TRAJECTORY.")
-        else:
-            raise GraphQLError(
-                f"Analysis method '{input.method.value}' is not yet implemented. "
-                "Currently only TRAJECTORY is supported."
-            )
+        if input.trajectory_params is None:
+            raise GraphQLError("trajectory_params is required.")
 
         job_id     = str(uuid4())
         created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

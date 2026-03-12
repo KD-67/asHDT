@@ -28,17 +28,15 @@ export const JOB_STATUS_SUBSCRIPTION = `subscription($jobId: String!) {
     jobStatus(jobId: $jobId) {
         status progress errorMessage
         result {
-            ... on TrajectoryReport {
-                reportId
-                datapoints {
-                    timestamp xHours rawValue dataQuality
-                    healthScore fittedValue zone
-                    fPrime fDoublePrime trajectoryState timeToTransitionHours
-                }
-                fitMetadata {
-                    coefficients t0Iso
-                    zoneBoundaries { vulnerabilityMargin }
-                }
+            reportId
+            datapoints {
+                timestamp xHours rawValue dataQuality
+                healthScore fittedValue zone
+                fPrime fDoublePrime trajectoryState timeToTransitionHours
+            }
+            fitMetadata {
+                coefficients t0Iso
+                zoneBoundaries { vulnerabilityMargin }
             }
         }
     }

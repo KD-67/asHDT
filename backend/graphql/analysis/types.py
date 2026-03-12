@@ -1,17 +1,6 @@
-# GraphQL types for all analysis-related concepts.
-#
-# ARCHITECTURE NOTE — Future-proofing via union types:
-# AnalysisResult is a union from day one, even though only TrajectoryReport is implemented.
-# To add a new analysis method (PCA, RandomForest, etc.):
-#   1. Define a new @strawberry.type (e.g. PCAReport) in this file
-#   2. Add it to the AnalysisResult union below
-#   3. Add a new ARQ task function in backend/workers/analysis_tasks.py
-#   4. Add the new AnalysisMethod enum value (already done — stub out the resolver)
-# Zero changes to Query, Mutation, or Subscription root types are needed.
-
 from __future__ import annotations
 from enum import Enum
-from typing import Annotated, Optional, Union
+from typing import Optional
 import strawberry
 
 
@@ -27,11 +16,7 @@ class JobStatus(Enum):
 
 @strawberry.enum
 class AnalysisMethod(Enum):
-    TRAJECTORY    = "trajectory"       # Implemented
-    PCA           = "pca"              # Stub — future
-    RANDOM_FOREST = "random_forest"    # Stub — future
-    NEURAL_NETWORK = "neural_network"  # Stub — future
-    AUTOMATED     = "automated"        # Stub — future
+    TRAJECTORY = "trajectory"
 
 
 # ── Analysis method registry type (served by analysisMethods query) ───────────
@@ -104,51 +89,15 @@ class TrajectoryReport:
     fit_metadata: FitMetadata
 
 
-# Stub types — defined now so the union contract is established.
-
-@strawberry.type
-class PCAReport:
-    """Principal Component Analysis across multiple markers — not yet implemented."""
-    report_id: str
-    message:   str = "PCA analysis not yet implemented"
-
-
-@strawberry.type
-class MLReport:
-    """Machine-learning ensemble analysis — not yet implemented."""
-    report_id: str
-    message:   str = "ML analysis not yet implemented"
-
-
-@strawberry.type
-class AutomatedInsightReport:
-    """Backend-automated marker + method selection — not yet implemented."""
-    report_id: str
-    message:   str = "Automated analysis not yet implemented"
-
-
-# ── Union ─────────────────────────────────────────────────────────────────────
-
-AnalysisResult = Annotated[
-    Union[TrajectoryReport, PCAReport, MLReport, AutomatedInsightReport],
-    strawberry.union("AnalysisResult"),
-]
-
-
 # ── Wrapper type ───────────────────────────────────────────────────────────────
 
 @strawberry.type
 class AnalysisJob:
-    """
-    Generic wrapper for any analysis computation, regardless of method.
-    Returned immediately by submitAnalysis (status=PENDING) and streamed
-    via jobStatus subscription as the worker progresses.
-    """
     job_id:        str
     status:        JobStatus
     progress:      Optional[float]
     created_at:    str
-    result:        Optional[AnalysisResult]
+    result:        Optional[TrajectoryReport]
     error_message: Optional[str]
 
 
@@ -196,7 +145,6 @@ class AnalysisInput:
     markerset_id:      Optional[str]                   = None
     marker_refs:       Optional[list[MarkerRefInput]]  = None
     trajectory_params: Optional[TrajectoryParamsInput] = None
-    # Future: pca_params, ml_params, automated_params
 
 
 # ── Helper: build TrajectoryReport from worker result payload ──────────────────
