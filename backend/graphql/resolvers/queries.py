@@ -1,6 +1,4 @@
 # All GraphQL Query resolvers.
-# Each resolver mirrors an existing REST GET endpoint so the GraphQL layer
-# has feature parity with REST before REST is eventually deprecated.
 
 from __future__ import annotations
 import os

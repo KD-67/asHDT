@@ -1,5 +1,7 @@
 <script>
-    import { gql, subscribe } from "../lib/gql.js";
+    import { subscribe } from "../lib/gql.js";
+    import { fetchAnalysisMethods, fetchMarkersetInstancesSlim, fetchZoneReference, submitAnalysis, JOB_STATUS_SUBSCRIPTION } from "../lib/api.js";
+    import { appState, ensureSubjectsLoaded, ensureModulesLoaded } from "../lib/stores.svelte.js";
 
     let textColor = '#422800';
     let borderColor = '#422800';
@@ -7,18 +9,22 @@
     let cardSectionColor = 'aliceblue';
     let addBtnColor = 'rgb(114, 231, 114)';
 
-    let loading = $state(false);
     let submitting = $state(false);
     let submitStatus = $state("");
 
-    let subjects = $state([]);
     let subject_profile = $state({});
     let profile_visible = $state(false);
-    let subject_names = $state({});
-    let modules = $state([]);
     let markers = $state([]);
     let analysis_methods = $state([]);
     let markerset_instances = $state([]);
+
+    let subjects = $derived(appState.subjects.map(s => s.subject_id));
+    let subject_names = $derived(Object.fromEntries(
+        appState.subjects
+            .filter(s => s.first_name && s.last_name)
+            .map(s => [s.subject_id, `${s.first_name} ${s.last_name} // ID: (${s.subject_id})`])
+    ));
+    let modules = $derived(appState.modules);
 
     let selected_subject = $state("nothing");
     let selected_method_id = $state("trajectory");
@@ -39,146 +45,28 @@
         analysis_methods.find(m => m.method_id === selected_method_id) ?? null
     );
 
-    async function loadSubjects() {
-        loading = true;
-        try {
-            const data = await gql(`query { subjects { subjectId firstName lastName } }`);
-            subjects = data.subjects.map(s => s.subjectId);
-            subject_names = {};
-            for (const s of data.subjects) {
-                if (s.firstName && s.lastName) {
-                    subject_names[s.subjectId] = `${s.firstName} ${s.lastName} // ID: (${s.subjectId})`;
-                }
-            }
-        } catch (e) {
-            console.error("Failed to load subjects:", e);
-        } finally {
-            loading = false;
-        }
-    }
-
-    async function loadSubjectProfile(subjectID) {
-        loading = true;
-        try {
-            const data = await gql(
-                `query($id: String!) { subject(subjectId: $id) { subjectId firstName lastName sex dob email phone notes createdAt } }`,
-                { id: subjectID }
-            );
-            const s = data.subject;
-            subject_profile = {
-                subject_id: s.subjectId,
-                first_name: s.firstName,
-                last_name:  s.lastName,
-                sex:        s.sex,
-                dob:        s.dob,
-                email:      s.email,
-                phone:      s.phone,
-                notes:      s.notes,
-                created_at: s.createdAt,
-            };
-        } catch (error) {
-            console.error("Failed to fetch profile:", error);
-        } finally {
-            loading = false;
-        }
-    }
-
-    async function loadModules() {
-        loading = true;
-        try {
-            const data = await gql(`query { modules { moduleId moduleName markers { markerId markerName } } }`);
-            modules = data.modules.map(m => ({
-                module_id:   m.moduleId,
-                module_name: m.moduleName,
-                markers:     m.markers.map(mk => ({ marker_id: mk.markerId, marker_name: mk.markerName })),
-            }));
-        } catch (e) {
-            console.error("Failed to load modules:", e);
-        } finally {
-            loading = false;
-        }
-    }
-
-    async function loadAnalysisMethods() {
-        try {
-            const data = await gql(`query {
-                analysisMethods {
-                    methodId methodName description status
-                    acceptsSingleMarker acceptsMarkerset
-                    minMarkers maxMarkers paramsSchema outputType
-                }
-            }`);
-            analysis_methods = data.analysisMethods.map(m => ({
-                method_id:             m.methodId,
-                method_name:           m.methodName,
-                description:           m.description,
-                status:                m.status,
-                accepts_single_marker: m.acceptsSingleMarker,
-                accepts_markerset:     m.acceptsMarkerset,
-                params_schema:         m.paramsSchema,
-            }));
-        } catch (e) {
-            console.error("Failed to load analysis methods:", e);
-            // Fallback so the form stays functional
-            analysis_methods = [{
-                method_id:             "trajectory",
-                method_name:           "Trajectory Analysis",
-                description:           "Polynomial fit + 27-state classification.",
-                status:                "implemented",
-                accepts_single_marker: true,
-                accepts_markerset:     true,
-                params_schema:         "trajectory",
-            }];
-        }
-    }
-
-    async function loadMarkersetInstances(subjectId) {
-        if (!subjectId || subjectId === "nothing") { markerset_instances = []; return; }
-        try {
-            const data = await gql(
-                `query($s: String!) { markersetInstances(subjectId: $s) { instanceId name } }`,
-                { s: subjectId }
-            );
-            markerset_instances = data.markersetInstances.map(i => ({
-                instance_id: i.instanceId,
-                name:        i.name,
-            }));
-        } catch (e) {
-            console.error("Failed to load markerset instances:", e);
-            markerset_instances = [];
-        }
-    }
-
     function onModuleChange() {
         const module = modules.find(m => m.module_id === selected_module);
         markers = module ? module.markers : [];
         selected_marker = "";
     }
 
-    function onSubjectChange() {
+    async function onSubjectChange() {
         selected_module = "nothing";
         selected_marker = "nothing";
         selected_markerset_id = "";
         zone_reference_note = null;
-        loadMarkersetInstances(selected_subject);
+        markerset_instances = await fetchMarkersetInstancesSlim(selected_subject);
     }
 
     async function loadZoneReference() {
         if (!selected_subject || !selected_module || !selected_marker) return;
         try {
-            const data = await gql(
-                `query($s: String!, $mo: String!, $ma: String!) {
-                    zoneReference(subjectId: $s, moduleId: $mo, markerId: $ma) {
-                        healthyMin healthyMax vulnerabilityMargin note
-                    }
-                }`,
-                { s: selected_subject, mo: selected_module, ma: selected_marker }
-            );
-            const ref = data.zoneReference;
+            const ref = await fetchZoneReference(selected_subject, selected_module, selected_marker);
             if (!ref) { zone_reference_note = null; return; }
-            selected_healthy_min          = ref.healthyMin;
-            selected_healthy_max          = ref.healthyMax;
-            selected_vulnerability_margin = ref.vulnerabilityMargin;
+            selected_healthy_min          = ref.healthy_min;
+            selected_healthy_max          = ref.healthy_max;
+            selected_vulnerability_margin = ref.vulnerability_margin;
             zone_reference_note           = ref.note;
         } catch (error) {
             console.error("Failed to fetch zone reference:", error);
@@ -231,37 +119,14 @@
             }
 
             // 1. Enqueue the job
-            const mutData = await gql(
-                `mutation($input: AnalysisInput!) { submitAnalysis(input: $input) { jobId status } }`,
-                { input: analysisInput }
-            );
-
-            const jobId = mutData.submitAnalysis.jobId;
+            const { job_id: jobId } = await submitAnalysis(analysisInput);
             submitStatus = "Analysis running...";
 
             // 2. Stream job status via WebSocket subscription
             await new Promise((resolve, reject) => {
                 let unsub;
                 unsub = subscribe(
-                    `subscription($jobId: String!) {
-                        jobStatus(jobId: $jobId) {
-                            status progress errorMessage
-                            result {
-                                ... on TrajectoryReport {
-                                    reportId
-                                    datapoints {
-                                        timestamp xHours rawValue dataQuality
-                                        healthScore fittedValue zone
-                                        fPrime fDoublePrime trajectoryState timeToTransitionHours
-                                    }
-                                    fitMetadata {
-                                        coefficients t0Iso
-                                        zoneBoundaries { vulnerabilityMargin }
-                                    }
-                                }
-                            }
-                        }
-                    }`,
+                    JOB_STATUS_SUBSCRIPTION,
                     { jobId },
                     (payload) => {
                         const job = payload.jobStatus;
@@ -314,9 +179,9 @@
         }
     }
 
-    loadSubjects();
-    loadModules();
-    loadAnalysisMethods();
+    ensureSubjectsLoaded();
+    ensureModulesLoaded();
+    fetchAnalysisMethods().then(r => analysis_methods = r);
 </script>
 
 <main style="--textColor: {textColor}; --borderColor: {borderColor}">
@@ -441,10 +306,10 @@
 
             <!-- Row 4: Actions -->
             <div id="row_submit">
-                <button type="button" onclick={async () => {
+                <button type="button" onclick={() => {
                     if (profile_visible) { profile_visible = false; return; }
                     if (!selected_subject || selected_subject === "nothing") return;
-                    await loadSubjectProfile(selected_subject);
+                    subject_profile = appState.subjects.find(s => s.subject_id === selected_subject) ?? {};
                     profile_visible = true;
                 }}>{profile_visible ? "Hide profile" : "Show profile"}</button>
                 <button style="--addBtnColor: {addBtnColor}" class="add_btn" type="button" onclick={submitTimegraphRequest} disabled={submitting}>

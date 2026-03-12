@@ -1,12 +1,11 @@
 <script>
     import { onMount } from "svelte";
-    import { gql } from "../lib/gql.js";
+    import { fetchMarkersetTemplates, fetchMarkersetInstancesFull, createMarkersetTemplate, updateMarkersetTemplate, deleteMarkersetTemplate, createMarkersetInstance, updateMarkersetInstance, deleteMarkersetInstance } from "../lib/api.js";
+    import { appState, ensureSubjectsLoaded, ensureModulesLoaded } from "../lib/stores.svelte.js";
 
     // ── State ──────────────────────────────────────────────────────────────────
 
-    let subjects = $state([]);
     let selectedSubject = $state("");
-    let modules = $state([]);
 
     // Templates
     let templates = $state([]);
@@ -34,7 +33,7 @@
     // ── Derived ────────────────────────────────────────────────────────────────
 
     let availableMarkersForAdd = $derived(
-        modules.find(m => m.module_id === addMarkerModule)?.markers ?? []
+        appState.modules.find(m => m.module_id === addMarkerModule)?.markers ?? []
     );
 
     $effect(() => { addMarkerModule; addMarkerMarker = ""; });
@@ -42,57 +41,10 @@
     // ── Load on mount ──────────────────────────────────────────────────────────
 
     onMount(async () => {
-        const [subData, modData, tmplData] = await Promise.all([
-            gql(`query { subjects { subjectId } }`),
-            gql(`query { modules { moduleId moduleName markers { markerId markerName } } }`),
-            gql(`query { markersetTemplates { markersetId name description markers {
-                    moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
-                } createdAt } }`),
-        ]);
-        subjects  = subData.subjects.map(s => s.subjectId);
-        modules   = modData.modules.map(m => ({
-            module_id:   m.moduleId,
-            module_name: m.moduleName,
-            markers:     m.markers.map(mk => ({ marker_id: mk.markerId, marker_name: mk.markerName })),
-        }));
-        templates = tmplData.markersetTemplates.map(normaliseTemplate);
+        ensureSubjectsLoaded();
+        ensureModulesLoaded();
+        templates = await fetchMarkersetTemplates();
     });
-
-    // ── Normalise GQL responses ────────────────────────────────────────────────
-
-    function normaliseTemplate(t) {
-        return {
-            markerset_id: t.markersetId,
-            name:         t.name,
-            description:  t.description ?? "",
-            markers:      t.markers.map(normaliseMarker),
-            created_at:   t.createdAt,
-        };
-    }
-
-    function normaliseInstance(i) {
-        return {
-            instance_id:  i.instanceId,
-            subject_id:   i.subjectId,
-            markerset_id: i.markersetId ?? "",
-            name:         i.name,
-            markers:      i.markers.map(normaliseMarker),
-            created_at:   i.createdAt,
-        };
-    }
-
-    function normaliseMarker(m) {
-        return {
-            module_id:              m.moduleId,
-            marker_id:              m.markerId,
-            weight:                 m.weight ?? 1.0,
-            active:                 m.active ?? true,
-            transform_type:         m.transformType ?? "none",
-            transform_window_hours: m.transformWindowHours ?? null,
-            transform_lag_hours:    m.transformLagHours ?? null,
-            missing_data:           m.missingData ?? "interpolate",
-        };
-    }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -114,7 +66,7 @@
     }
 
     function markerLabel(m) {
-        const mod = modules.find(md => md.module_id === m.module_id);
+        const mod = appState.modules.find(md => md.module_id === m.module_id);
         const mk  = mod?.markers.find(mk => mk.marker_id === m.marker_id);
         return `${mod?.module_name || m.module_id} / ${mk?.marker_name || m.marker_id}`;
     }
@@ -146,30 +98,11 @@
 
         try {
             if (editorMode === "new_template") {
-                const data = await gql(
-                    `mutation($input: CreateMarkersetTemplateInput!) {
-                        createMarkersetTemplate(input: $input) {
-                            markersetId name description markers {
-                                moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
-                            } createdAt
-                        }
-                    }`,
-                    { input: { name: editorName, description: editorDescription, markers: markersInput } }
-                );
-                templates = [...templates, normaliseTemplate(data.createMarkersetTemplate)];
+                const tmpl = await createMarkersetTemplate({ name: editorName, description: editorDescription, markers: markersInput });
+                templates = [...templates, tmpl];
                 setStatus(`Template "${editorName}" created.`);
             } else {
-                const data = await gql(
-                    `mutation($id: String!, $input: CreateMarkersetTemplateInput!) {
-                        updateMarkersetTemplate(markersetId: $id, input: $input) {
-                            markersetId name description markers {
-                                moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
-                            } createdAt
-                        }
-                    }`,
-                    { id: selectedTemplate.markerset_id, input: { name: editorName, description: editorDescription, markers: markersInput } }
-                );
-                const updated = normaliseTemplate(data.updateMarkersetTemplate);
+                const updated = await updateMarkersetTemplate(selectedTemplate.markerset_id, { name: editorName, description: editorDescription, markers: markersInput });
                 templates = templates.map(t => t.markerset_id === updated.markerset_id ? updated : t);
                 selectedTemplate = updated;
                 setStatus(`Template "${editorName}" updated.`);
@@ -183,10 +116,7 @@
     async function deleteTemplate(tmpl) {
         if (!confirm(`Delete template "${tmpl.name}"? Instances using it will lose their base.`)) return;
         try {
-            await gql(
-                `mutation($id: String!) { deleteMarkersetTemplate(markersetId: $id) }`,
-                { id: tmpl.markerset_id }
-            );
+            await deleteMarkersetTemplate(tmpl.markerset_id);
             templates = templates.filter(t => t.markerset_id !== tmpl.markerset_id);
             if (selectedTemplate?.markerset_id === tmpl.markerset_id) selectedTemplate = null;
             setStatus(`Template "${tmpl.name}" deleted.`);
@@ -202,15 +132,7 @@
         selectedInstance = null;
         if (!subjectId) return;
         try {
-            const data = await gql(
-                `query($s: String!) { markersetInstances(subjectId: $s) {
-                    instanceId subjectId markersetId name markers {
-                        moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
-                    } createdAt
-                } }`,
-                { s: subjectId }
-            );
-            instances = data.markersetInstances.map(normaliseInstance);
+            instances = await fetchMarkersetInstancesFull(subjectId);
         } catch (e) {
             setStatus("Failed to load instances.", false);
         }
@@ -247,30 +169,11 @@
 
         try {
             if (editorMode === "new_instance") {
-                const data = await gql(
-                    `mutation($s: String!, $input: CreateMarkersetInstanceInput!) {
-                        createMarkersetInstance(subjectId: $s, input: $input) {
-                            instanceId subjectId markersetId name markers {
-                                moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
-                            } createdAt
-                        }
-                    }`,
-                    { s: selectedSubject, input: instInput }
-                );
-                instances = [...instances, normaliseInstance(data.createMarkersetInstance)];
+                const inst = await createMarkersetInstance(selectedSubject, instInput);
+                instances = [...instances, inst];
                 setStatus(`Instance "${editorName}" created.`);
             } else {
-                const data = await gql(
-                    `mutation($id: String!, $input: CreateMarkersetInstanceInput!) {
-                        updateMarkersetInstance(instanceId: $id, input: $input) {
-                            instanceId subjectId markersetId name markers {
-                                moduleId markerId weight active transformType transformWindowHours transformLagHours missingData
-                            } createdAt
-                        }
-                    }`,
-                    { id: selectedInstance.instance_id, input: instInput }
-                );
-                const updated = normaliseInstance(data.updateMarkersetInstance);
+                const updated = await updateMarkersetInstance(selectedInstance.instance_id, instInput);
                 instances = instances.map(i => i.instance_id === updated.instance_id ? updated : i);
                 selectedInstance = updated;
                 setStatus(`Instance "${editorName}" updated.`);
@@ -284,10 +187,7 @@
     async function deleteInstance(inst) {
         if (!confirm(`Delete instance "${inst.name}"?`)) return;
         try {
-            await gql(
-                `mutation($id: String!) { deleteMarkersetInstance(instanceId: $id) }`,
-                { id: inst.instance_id }
-            );
+            await deleteMarkersetInstance(inst.instance_id);
             instances = instances.filter(i => i.instance_id !== inst.instance_id);
             if (selectedInstance?.instance_id === inst.instance_id) selectedInstance = null;
             setStatus(`Instance "${inst.name}" deleted.`);
@@ -402,8 +302,8 @@
                         <label for="sub_select">Subject</label>
                         <select id="sub_select" bind:value={selectedSubject} onchange={() => loadInstances(selectedSubject)}>
                             <option value="">-- select --</option>
-                            {#each subjects as s}
-                                <option value={s}>{s}</option>
+                            {#each appState.subjects as s}
+                                <option value={s.subject_id}>{s.subject_id}</option>
                             {/each}
                         </select>
                     </div>
@@ -558,7 +458,7 @@
                         <label>Module
                             <select bind:value={addMarkerModule}>
                                 <option value="">-- module --</option>
-                                {#each modules as m}
+                                {#each appState.modules as m}
                                     <option value={m.module_id}>{m.module_name || m.module_id}</option>
                                 {/each}
                             </select>

@@ -16,13 +16,11 @@
     import CancelIcon from "../assets/cancel_icon.svg?raw";
 
     import { onMount } from "svelte";
-    import { gql, gqlUpload } from "../lib/gql.js";
+    import { createSubject, updateSubject, deleteSubject, fetchDatasets, fetchDatapoints, addDatapoint, updateDatapoint, deleteDatapoint, uploadDatapoint, deleteDataset } from "../lib/api.js";
+    import { appState, ensureSubjectsLoaded, ensureModulesLoaded, storeAddSubject, storeUpdateSubject, storeRemoveSubject } from "../lib/stores.svelte.js";
 
     // Mode: "view" or "add"
     let mode = $state("view");
-
-    // Subject list
-    let subjects = $state([]);
 
     // Profile expanded (view button)
     let expandedSubject = $state(null);
@@ -37,8 +35,7 @@
     let selectedDataset = $state(null);
     let datapoints = $state([]);
 
-    // Module list (for "open new dataset" selector)
-    let modules = $state([]);
+    // Module selector for "open new dataset"
     let newDsModule = $state("");
     let newDsMarker = $state("");
 
@@ -70,41 +67,19 @@
     let statusMessage = $state("");
     let statusOk = $state(true);
 
-    onMount(async () => {
-        const [subData, modData] = await Promise.all([
-            gql(`query { subjects { subjectId firstName lastName sex dob email phone notes createdAt } }`),
-            gql(`query { modules { moduleId moduleName markers { markerId markerName } } }`),
-        ]);
-        subjects = subData.subjects.map(remapSubject);
-        modules  = modData.modules.map(m => ({
-            module_id:   m.moduleId,
-            module_name: m.moduleName,
-            markers:     m.markers.map(mk => ({ marker_id: mk.markerId, marker_name: mk.markerName })),
-        }));
+    onMount(() => {
+        ensureSubjectsLoaded();
+        ensureModulesLoaded();
     });
 
     let availableMarkers = $derived(
-        modules.find(m => m.module_id === newDsModule)?.markers ?? []
+        appState.modules.find(m => m.module_id === newDsModule)?.markers ?? []
     );
 
     $effect(() => {
         newDsModule;
         newDsMarker = "";
     });
-
-    function remapSubject(s) {
-        return {
-            subject_id: s.subjectId,
-            first_name: s.firstName,
-            last_name:  s.lastName,
-            sex:        s.sex,
-            dob:        s.dob,
-            email:      s.email,
-            phone:      s.phone,
-            notes:      s.notes,
-            created_at: s.createdAt,
-        };
-    }
 
     function formatDate(iso) {
         if (!iso) return '—';
@@ -140,35 +115,28 @@
         statusMessage = "";
     }
 
-    async function loadSubjects() {
-        try {
-            const data = await gql(`query { subjects { subjectId firstName lastName sex dob email phone notes createdAt } }`);
-            subjects = data.subjects.map(remapSubject);
-        } catch (e) {
-            setStatus("Failed to load subjects.", false);
-        }
-    }
-
     async function handleEditSubject(subject_id) {
         try {
-            await gql(
-                `mutation($id: String!, $input: SubjectInput!) { updateSubject(subjectId: $id, input: $input) { subjectId } }`,
-                {
-                    id: subject_id,
-                    input: {
-                        firstName: editSubject.first_name,
-                        lastName:  editSubject.last_name,
-                        sex:       editSubject.sex,
-                        dob:       editSubject.dob,
-                        email:     editSubject.email,
-                        phone:     editSubject.phone,
-                        notes:     editSubject.notes,
-                    },
-                }
-            );
+            await updateSubject(subject_id, {
+                firstName: editSubject.first_name,
+                lastName:  editSubject.last_name,
+                sex:       editSubject.sex,
+                dob:       editSubject.dob,
+                email:     editSubject.email,
+                phone:     editSubject.phone,
+                notes:     editSubject.notes,
+            });
             setStatus(`Subject "${subject_id}" updated.`);
             editingSubject = null;
-            await loadSubjects();
+            storeUpdateSubject(subject_id, {
+                first_name: editSubject.first_name,
+                last_name:  editSubject.last_name,
+                sex:        editSubject.sex,
+                dob:        editSubject.dob,
+                email:      editSubject.email,
+                phone:      editSubject.phone,
+                notes:      editSubject.notes,
+            });
         } catch (e) {
             setStatus(`Error: ${e.message}`, false);
         }
@@ -177,13 +145,10 @@
     async function handleDeleteSubject(subject_id) {
         if (!confirm(`Delete ${subject_id}? Their data will be moved to deleted_subjects/.`)) return;
         try {
-            await gql(
-                `mutation($id: String!) { deleteSubject(subjectId: $id) }`,
-                { id: subject_id }
-            );
+            await deleteSubject(subject_id);
             setStatus(`Subject "${subject_id}" deleted.`);
             collapseSubject();
-            await loadSubjects();
+            storeRemoveSubject(subject_id);
         } catch (e) {
             setStatus(`Error: ${e.message}`, false);
         }
@@ -191,15 +156,16 @@
 
     async function handleCreate() {
         try {
-            const data = await gql(
-                `mutation($input: SubjectInput!) { createSubject(input: $input) { subjectId } }`,
-                { input: { firstName: first_name, lastName: last_name, sex, dob, email, phone, notes } }
-            );
-            setStatus(`Subject created: ${data.createSubject.subjectId}`);
+            const subjectId = await createSubject({ firstName: first_name, lastName: last_name, sex, dob, email, phone, notes });
+            setStatus(`Subject created: ${subjectId}`);
+            storeAddSubject({
+                subject_id: subjectId,
+                first_name, last_name, sex, dob, email, phone, notes,
+                created_at: new Date().toISOString(),
+            });
             first_name = ""; last_name = ""; sex = ""; dob = "";
             email = ""; phone = ""; notes = "";
             mode = "view";
-            await loadSubjects();
         } catch (e) {
             setStatus(`Error: ${e.message}`, false);
         }
@@ -213,15 +179,7 @@
         datapoints = [];
         statusMessage = "";
         try {
-            const data = await gql(
-                `query($s: String!) { datasets(subjectId: $s) { moduleId markerId entryCount } }`,
-                { s: subject_id }
-            );
-            datasets = data.datasets.map(d => ({
-                module_id:   d.moduleId,
-                marker_id:   d.markerId,
-                entry_count: d.entryCount,
-            }));
+            datasets = await fetchDatasets(subject_id);
         } catch (e) {
             setStatus("Failed to load datasets.", false);
         }
@@ -234,20 +192,7 @@
         addFormOpen = false;
         statusMessage = "";
         try {
-            const data = await gql(
-                `query($s: String!, $mo: String!, $ma: String!) {
-                    datapoints(subjectId: $s, moduleId: $mo, markerId: $ma) {
-                        measuredAt value unit dataQuality
-                    }
-                }`,
-                { s: datasetsSubject, mo: module_id, ma: marker_id }
-            );
-            datapoints = data.datapoints.map(dp => ({
-                measured_at:  dp.measuredAt,
-                value:        dp.value,
-                unit:         dp.unit,
-                data_quality: dp.dataQuality,
-            }));
+            datapoints = await fetchDatapoints(datasetsSubject, module_id, marker_id);
             if (datapoints.length > 0) dpUnit = datapoints[0].unit ?? "";
         } catch (e) {
             setStatus(`Failed to load datapoints.`, false);
@@ -278,21 +223,12 @@
         const mid = selectedDataset.module_id;
         const mkid = selectedDataset.marker_id;
         try {
-            await gql(
-                `mutation($s: String!, $mo: String!, $ma: String!, $orig: String!, $input: DatapointInput!) {
-                    updateDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, originalMeasuredAt: $orig, input: $input) { measuredAt }
-                }`,
-                {
-                    s: datasetsSubject, mo: mid, ma: mkid,
-                    orig: editingDp.measured_at,
-                    input: {
-                        measuredAt:  new Date(editTs).toISOString(),
-                        value:       parseFloat(editValue),
-                        unit:        editUnit,
-                        dataQuality: editQuality,
-                    },
-                }
-            );
+            await updateDatapoint(datasetsSubject, mid, mkid, editingDp.measured_at, {
+                measuredAt:  new Date(editTs).toISOString(),
+                value:       parseFloat(editValue),
+                unit:        editUnit,
+                dataQuality: editQuality,
+            });
             setStatus("Datapoint updated.");
             editingDp = null;
             await loadDatasets(datasetsSubject);
@@ -308,20 +244,12 @@
         const mid = selectedDataset.module_id;
         const mkid = selectedDataset.marker_id;
         try {
-            await gql(
-                `mutation($s: String!, $mo: String!, $ma: String!, $input: DatapointInput!) {
-                    addDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, input: $input) { measuredAt }
-                }`,
-                {
-                    s: datasetsSubject, mo: mid, ma: mkid,
-                    input: {
-                        measuredAt:  new Date(dpTimestamp).toISOString(),
-                        value:       parseFloat(dpValue),
-                        unit:        dpUnit,
-                        dataQuality: dpQuality,
-                    },
-                }
-            );
+            await addDatapoint(datasetsSubject, mid, mkid, {
+                measuredAt:  new Date(dpTimestamp).toISOString(),
+                value:       parseFloat(dpValue),
+                unit:        dpUnit,
+                dataQuality: dpQuality,
+            });
             setStatus("Datapoint added.");
             dpTimestamp = ""; dpValue = ""; dpQuality = "good";
             await loadDatasets(datasetsSubject);
@@ -336,14 +264,7 @@
         const mid = selectedDataset.module_id;
         const mkid = selectedDataset.marker_id;
         try {
-            await gqlUpload(
-                `mutation($s: String!, $mo: String!, $ma: String!, $file: Upload!) {
-                    uploadDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, file: $file) { measuredAt }
-                }`,
-                { s: datasetsSubject, mo: mid, ma: mkid },
-                "file",
-                uploadFile
-            );
+            await uploadDatapoint(datasetsSubject, mid, mkid, uploadFile);
             setStatus("File uploaded.");
             uploadFile = null;
             await loadDatasets(datasetsSubject);
@@ -358,12 +279,7 @@
         const mid = selectedDataset.module_id;
         const mkid = selectedDataset.marker_id;
         try {
-            await gql(
-                `mutation($s: String!, $mo: String!, $ma: String!, $ts: String!) {
-                    deleteDatapoint(subjectId: $s, moduleId: $mo, markerId: $ma, measuredAt: $ts)
-                }`,
-                { s: datasetsSubject, mo: mid, ma: mkid, ts: measured_at }
-            );
+            await deleteDatapoint(datasetsSubject, mid, mkid, measured_at);
             setStatus("Datapoint deleted.");
             await loadDatasets(datasetsSubject);
             await loadDatapoints(mid, mkid);
@@ -375,12 +291,7 @@
     async function handleDeleteDataset(module_id, marker_id) {
         if (!confirm(`Delete entire dataset ${module_id}/${marker_id}? This cannot be undone.`)) return;
         try {
-            await gql(
-                `mutation($s: String!, $mo: String!, $ma: String!) {
-                    deleteDataset(subjectId: $s, moduleId: $mo, markerId: $ma)
-                }`,
-                { s: datasetsSubject, mo: module_id, ma: marker_id }
-            );
+            await deleteDataset(datasetsSubject, module_id, marker_id);
             setStatus(`Dataset ${module_id}/${marker_id} deleted.`);
             selectedDataset = null;
             datapoints = [];
@@ -409,10 +320,10 @@
             </div>
             <!-- VIEW MODE: Subject cards -->
             {#if mode === "view"}
-                {#if subjects.length === 0}
+                {#if appState.subjects.length === 0}
                     <p>No subjects found.</p>
                 {/if}
-                {#each subjects as s}
+                {#each appState.subjects as s}
                     <div class="module_card" role="button" style="--cardColor: {cardColor}" tabindex="0"
                         onclick={() => {
                             if (datasetsSubject === s.subject_id) {
@@ -489,7 +400,7 @@
                                 <div class="new_dataset_row">
                                     <select bind:value={newDsModule}>
                                         <option value="">-- module --</option>
-                                        {#each modules as m}
+                                        {#each appState.modules as m}
                                             <option value={m.module_id}>{m.module_name || m.module_id}</option>
                                         {/each}
                                     </select>
@@ -628,7 +539,7 @@
                                                     </label>
                                                     <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" onclick={handleAddForm}>{@html AddIcon}</button>
                                                 {:else}
-                                                    <label>JSON file <input type="file" accept=".json" onchange={(e) => uploadFile = e.target.files[0]}></label>
+                                                    <label>JSON file <input type="file" accept=".json" onchange={(e) => uploadFile = /** @type {HTMLInputElement} */ (e.target).files[0]}></label>
                                                     <button style="--addBtnColor: {addBtnColor}" type="button" class="add_btn" onclick={handleUpload}>{@html AddIcon}</button>
                                                 {/if}
                                             </div>

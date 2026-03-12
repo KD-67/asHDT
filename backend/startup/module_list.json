@@ -51,13 +51,6 @@
           "volatility_class": "medium_term"
         }
       ]
-    },
-    {
-      "module_id": "new_test",
-      "module_name": "TESTEST",
-      "description": "This is just a test",
-      "format": "json",
-      "markers": []
     }
   ]
 }

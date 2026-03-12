@@ -16,10 +16,10 @@
       import LevelsIcon from "../assets/levels_icon.svg?raw";
 
       import { onMount } from "svelte";
-      import { gql } from "../lib/gql.js";
+      import { createModule, updateModule, deleteModule, createMarker, updateMarker, deleteMarker, fetchDemographicZones, addDemographicZone, updateDemographicZone, deleteDemographicZone } from "../lib/api.js";
+      import { appState, ensureModulesLoaded, storeAddModule, storeUpdateModule, storeRemoveModule, storeAddMarker, storeUpdateMarker, storeRemoveMarker } from "../lib/stores.svelte.js";
 
       let mode = $state("view");
-      let modules = $state([]);
       let statusMessage = $state("");
       let statusOk = $state(true);
 
@@ -56,31 +56,7 @@
           return { marker_id: "", marker_name: "", description: "", unit: "", volatility_class: "", healthy_min: "", healthy_max: "", vulnerability_margin: "" };
       }
 
-      onMount(loadModules);
-
-      async function loadModules() {
-          try {
-              const data = await gql(
-                  `query { modules { moduleId moduleName description markers {
-                      markerId markerName description unit volatilityClass
-                  } } }`
-              );
-              modules = data.modules.map(m => ({
-                  module_id:   m.moduleId,
-                  module_name: m.moduleName,
-                  description: m.description,
-                  markers:     m.markers.map(mk => ({
-                      marker_id:        mk.markerId,
-                      marker_name:      mk.markerName,
-                      description:      mk.description,
-                      unit:             mk.unit,
-                      volatility_class: mk.volatilityClass,
-                  })),
-              }));
-          } catch (e) {
-              setStatus("Failed to load modules.", false);
-          }
-      }
+      onMount(() => ensureModulesLoaded());
 
       function setStatus(msg, ok = true) {
           statusMessage = msg;
@@ -92,14 +68,11 @@
       async function handleCreateModule() {
           if (!new_module_id.trim()) { setStatus("Module ID is required.", false); return; }
           try {
-              await gql(
-                  `mutation($input: ModuleInput!) { createModule(input: $input) { moduleId } }`,
-                  { input: { moduleId: new_module_id.trim(), moduleName: new_module_name.trim(), description: new_module_description.trim() } }
-              );
+              await createModule({ moduleId: new_module_id.trim(), moduleName: new_module_name.trim(), description: new_module_description.trim() });
+              storeAddModule({ module_id: new_module_id.trim(), module_name: new_module_name.trim(), description: new_module_description.trim(), markers: [] });
               setStatus(`Module "${new_module_id}" created.`);
-              new_module_id = ""; new_module_description = "";
+              new_module_id = ""; new_module_name = ""; new_module_description = "";
               mode = "view";
-              await loadModules();
           } catch (e) {
               setStatus(`Error: ${e.message}`, false);
           }
@@ -120,13 +93,10 @@
 
       async function handleEditModule(module_id) {
           try {
-              await gql(
-                  `mutation($id: String!, $input: ModuleUpdateInput!) { updateModule(moduleId: $id, input: $input) { moduleId } }`,
-                  { id: module_id, input: { moduleName: editModuleName, description: editModuleDescription } }
-              );
+              await updateModule(module_id, { moduleName: editModuleName, description: editModuleDescription });
+              storeUpdateModule(module_id, { module_name: editModuleName, description: editModuleDescription });
               setStatus(`Module "${module_id}" updated.`);
               editingModule = "";
-              await loadModules();
           } catch (e) {
               setStatus(`Error: ${e.message}`, false);
           }
@@ -135,13 +105,10 @@
       async function handleDeleteModule(module_id) {
           if (!confirm(`Delete module "${module_id}"? This cannot be undone.`)) return;
           try {
-              await gql(
-                  `mutation($id: String!) { deleteModule(moduleId: $id) }`,
-                  { id: module_id }
-              );
+              await deleteModule(module_id);
               setStatus(`Module "${module_id}" deleted.`);
               if (expandedModule === module_id) collapseModule();
-              await loadModules();
+              storeRemoveModule(module_id);
           } catch (e) {
               setStatus(`Error: ${e.message}`, false);
           }
@@ -164,25 +131,25 @@
               return;
           }
           try {
-              await gql(
-                  `mutation($mo: String!, $input: MarkerInput!) { createMarker(moduleId: $mo, input: $input) { markerId } }`,
-                  {
-                      mo: module_id,
-                      input: {
-                          markerId:            newMarker.marker_id.trim(),
-                          markerName:          newMarker.marker_name.trim(),
-                          description:         newMarker.description.trim(),
-                          unit:                newMarker.unit.trim(),
-                          volatilityClass:     newMarker.volatility_class.trim(),
-                          healthyMin:          hMin,
-                          healthyMax:          hMax,
-                          vulnerabilityMargin: vMargin,
-                      },
-                  }
-              );
+              await createMarker(module_id, {
+                  markerId:            newMarker.marker_id.trim(),
+                  markerName:          newMarker.marker_name.trim(),
+                  description:         newMarker.description.trim(),
+                  unit:                newMarker.unit.trim(),
+                  volatilityClass:     newMarker.volatility_class.trim(),
+                  healthyMin:          hMin,
+                  healthyMax:          hMax,
+                  vulnerabilityMargin: vMargin,
+              });
+              storeAddMarker(module_id, {
+                  marker_id:        newMarker.marker_id.trim(),
+                  marker_name:      newMarker.marker_name.trim(),
+                  description:      newMarker.description.trim(),
+                  unit:             newMarker.unit.trim(),
+                  volatility_class: newMarker.volatility_class.trim(),
+              });
               setStatus(`Marker "${newMarker.marker_id}" added to "${module_id}".`);
               addingMarkerTo = "";
-              await loadModules();
           } catch (e) {
               setStatus(`Error: ${e.message}`, false);
           }
@@ -201,24 +168,23 @@
 
       async function handleEditMarker(module_id, marker_id) {
           try {
-              await gql(
-                  `mutation($mo: String!, $ma: String!, $input: MarkerUpdateInput!) { updateMarker(moduleId: $mo, markerId: $ma, input: $input) { markerId } }`,
-                  {
-                      mo: module_id, ma: marker_id,
-                      input: {
-                          markerName:          editMarker.marker_name,
-                          description:         editMarker.description,
-                          unit:                editMarker.unit,
-                          volatilityClass:     editMarker.volatility_class,
-                          healthyMin:          parseFloat(editMarker.healthy_min),
-                          healthyMax:          parseFloat(editMarker.healthy_max),
-                          vulnerabilityMargin: parseFloat(editMarker.vulnerability_margin),
-                      },
-                  }
-              );
+              await updateMarker(module_id, marker_id, {
+                  markerName:          editMarker.marker_name,
+                  description:         editMarker.description,
+                  unit:                editMarker.unit,
+                  volatilityClass:     editMarker.volatility_class,
+                  healthyMin:          parseFloat(editMarker.healthy_min),
+                  healthyMax:          parseFloat(editMarker.healthy_max),
+                  vulnerabilityMargin: parseFloat(editMarker.vulnerability_margin),
+              });
+              storeUpdateMarker(module_id, marker_id, {
+                  marker_name:      editMarker.marker_name,
+                  description:      editMarker.description,
+                  unit:             editMarker.unit,
+                  volatility_class: editMarker.volatility_class,
+              });
               setStatus(`Marker "${marker_id}" updated.`);
               editingMarker = null;
-              await loadModules();
           } catch (e) {
               setStatus(`Error: ${e.message}`, false);
           }
@@ -242,21 +208,7 @@
 
       async function loadZoneRefs(module_id, marker_id) {
           try {
-              const data = await gql(
-                  `query($mo: String!, $ma: String!) {
-                      demographicZones(moduleId: $mo, markerId: $ma) {
-                          sex age healthyMin healthyMax vulnerabilityMargin
-                      }
-                  }`,
-                  { mo: module_id, ma: marker_id }
-              );
-              zoneRefRows = data.demographicZones.map(r => ({
-                  sex:                  r.sex,
-                  age:                  r.age,
-                  healthy_min:          r.healthyMin,
-                  healthy_max:          r.healthyMax,
-                  vulnerability_margin: r.vulnerabilityMargin,
-              }));
+              zoneRefRows = await fetchDemographicZones(module_id, marker_id);
           } catch (e) {
               setStatus("Failed to load zone references.", false);
           }
@@ -264,21 +216,13 @@
 
       async function handleAddDemoZone(module_id, marker_id) {
           try {
-              await gql(
-                  `mutation($mo: String!, $ma: String!, $input: DemographicZoneInput!) {
-                      addDemographicZone(moduleId: $mo, markerId: $ma, input: $input) { sex age }
-                  }`,
-                  {
-                      mo: module_id, ma: marker_id,
-                      input: {
-                          sex:                 newDemoZone.sex,
-                          age:                 parseInt(newDemoZone.age),
-                          healthyMin:          parseFloat(newDemoZone.healthy_min),
-                          healthyMax:          parseFloat(newDemoZone.healthy_max),
-                          vulnerabilityMargin: parseFloat(newDemoZone.vulnerability_margin),
-                      },
-                  }
-              );
+              await addDemographicZone(module_id, marker_id, {
+                  sex:                 newDemoZone.sex,
+                  age:                 parseInt(newDemoZone.age),
+                  healthyMin:          parseFloat(newDemoZone.healthy_min),
+                  healthyMax:          parseFloat(newDemoZone.healthy_max),
+                  vulnerabilityMargin: parseFloat(newDemoZone.vulnerability_margin),
+              });
               setStatus("Demographic zone row added.");
               addingDemoZone = false;
               newDemoZone = { sex: "M", age: "", healthy_min: "", healthy_max: "", vulnerability_margin: "" };
@@ -290,19 +234,11 @@
 
       async function handleEditDemoZone(module_id, marker_id, sex, age) {
           try {
-              await gql(
-                  `mutation($mo: String!, $ma: String!, $sex: String!, $age: Int!, $input: ZoneBoundaryInput!) {
-                      updateDemographicZone(moduleId: $mo, markerId: $ma, sex: $sex, age: $age, input: $input) { sex age }
-                  }`,
-                  {
-                      mo: module_id, ma: marker_id, sex, age,
-                      input: {
-                          healthyMin:          parseFloat(editDemoZone.healthy_min),
-                          healthyMax:          parseFloat(editDemoZone.healthy_max),
-                          vulnerabilityMargin: parseFloat(editDemoZone.vulnerability_margin),
-                      },
-                  }
-              );
+              await updateDemographicZone(module_id, marker_id, sex, age, {
+                  healthyMin:          parseFloat(editDemoZone.healthy_min),
+                  healthyMax:          parseFloat(editDemoZone.healthy_max),
+                  vulnerabilityMargin: parseFloat(editDemoZone.vulnerability_margin),
+              });
               setStatus("Demographic zone row updated.");
               editingDemoZone = null;
               await loadZoneRefs(module_id, marker_id);
@@ -314,12 +250,7 @@
       async function handleDeleteDemoZone(module_id, marker_id, sex, age) {
           if (!confirm(`Delete zone ref ${sex}/${age}?`)) return;
           try {
-              await gql(
-                  `mutation($mo: String!, $ma: String!, $sex: String!, $age: Int!) {
-                      deleteDemographicZone(moduleId: $mo, markerId: $ma, sex: $sex, age: $age)
-                  }`,
-                  { mo: module_id, ma: marker_id, sex, age }
-              );
+              await deleteDemographicZone(module_id, marker_id, sex, age);
               setStatus("Demographic zone row deleted.");
               await loadZoneRefs(module_id, marker_id);
           } catch (e) {
@@ -330,12 +261,9 @@
       async function handleDeleteMarker(module_id, marker_id) {
           if (!confirm(`Delete marker "${marker_id}" from "${module_id}"?`)) return;
           try {
-              await gql(
-                  `mutation($mo: String!, $ma: String!) { deleteMarker(moduleId: $mo, markerId: $ma) }`,
-                  { mo: module_id, ma: marker_id }
-              );
+              await deleteMarker(module_id, marker_id);
+              storeRemoveMarker(module_id, marker_id);
               setStatus(`Marker "${marker_id}" deleted.`);
-              await loadModules();
           } catch (e) {
               setStatus(`Error: ${e.message}`, false);
           }
@@ -380,10 +308,10 @@
                 </div>
           <!-- VIEW / EDIT MODE -->
           {#if mode === "view"}
-              {#if modules.length === 0}
+              {#if appState.modules.length === 0}
                   <p>No modules found.</p>
               {/if}
-              {#each modules as mod}
+              {#each appState.modules as mod}
                 <div class="module_card" role="button" style="--cardColor: {cardColor}" tabindex="0" onclick={() => expandedModule === mod.module_id ? collapseModule() : (collapseModule(), expandedModule = mod.module_id)} onkeydown={(e) => e.key === 'Enter' && (expandedModule === mod.module_id ? collapseModule() : (collapseModule(), expandedModule = mod.module_id))}>
                     <div id="card_header_container">
                         <h2 class="card_header">{mod.module_name || mod.module_id}</h2>

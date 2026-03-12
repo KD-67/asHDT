@@ -1,11 +1,14 @@
 <script>
     import { onMount } from "svelte";
+
+    // ── UI Components ──────────────────────────────────────────────────────────────────────
     import HomeDiv from "./components/home_div.svelte";
     import DataManagementPortal from "./components/data_management_portal.svelte";
     import RequestReportForm from "./components/request_report_form.svelte";
     import SubjectManagement from "./components/subject_management.svelte";
     import AddModulePage from "./components/add_module_page.svelte";
     import DatasetManagement from "./components/dataset_management.svelte";
+    import Sandbox from "./components/sandbox.svelte";
     import Help from "./components/help.svelte";                                                                              
     import Timegraph from "./components/timegraph_report_page.svelte";                                                                      
     
@@ -29,6 +32,7 @@
       <a class="nav_link" href="http://localhost:5173/#home">Home</a>
       <a class="nav_link" href="http://localhost:5173/#data_management_portal">Data Management Portal</a>
       <a class="nav_link" href="http://localhost:5173/#request_report_form">Request Report</a>
+      <a class="nav_link" href="http://localhost:5173/#sandbox">Sandbox</a>
       <a class="nav_link" href="http://localhost:5173/#help">Help</a>
   </div>
 
@@ -47,6 +51,8 @@
     <AddModulePage />
   {:else if currentPage == "dataset_management"}
     <DatasetManagement />
+  {:else if currentPage == "sandbox"}
+    <Sandbox />
   {:else if currentPage == "help"}
     <Help />
   {:else if currentPage == "timegraph"}

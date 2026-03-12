@@ -21,6 +21,8 @@
                     <div class="functional_file">timegraph_table.svelte</div>
                 </div>
                 <div class="functional_file">lib/gql.js</div>
+                <div class="functional_file">lib/api.js</div>
+                <div class="functional_file new_file">lib/stores.svelte.js <span class="badge">reactive store</span></div>
             </div>
 
             <div id="backend">
@@ -102,7 +104,7 @@
             <p>The app is split into two main parts: a <strong>frontend</strong> (what you see in the browser) and a <strong>backend</strong> (a server running on your machine that does the heavy lifting).</p>
 
             <h5>Frontend</h5>
-            <p>The frontend is built with <strong>Svelte</strong>, a framework for building interactive web pages. Each <code>.svelte</code> file is a self-contained page or component. Navigation between pages happens via URL hash (e.g. <code>#subject_management</code>). The frontend talks to the backend by sending <strong>GraphQL</strong> requests — a structured way of asking for exactly the data it needs, nothing more.</p>
+            <p>The frontend is built with <strong>Svelte</strong>, a framework for building interactive web pages. Each <code>.svelte</code> file is a self-contained page or component. Navigation between pages happens via URL hash (e.g. <code>#subject_management</code>). The frontend talks to the backend by sending <strong>GraphQL</strong> requests via <code>lib/api.js</code> (typed fetch wrappers) and <code>lib/gql.js</code> (raw transport). <code>lib/stores.svelte.js</code> holds a shared reactive singleton for subjects and modules — each list is fetched exactly once per session and updated in-place after mutations, so no component ever re-fetches the full list.</p>
 
             <h5>Backend</h5>
             <p>The backend is a <strong>Python</strong> server built with <strong>FastAPI</strong>. When it starts up, it reads data from the filesystem and syncs it into a local <strong>SQLite</strong> database (a simple file-based database). It loads two JSON registries: <code>module_list.json</code> (the module/marker catalog) and <code>analysis_list.json</code> (the analysis method registry). It then exposes a <strong>GraphQL API</strong> at <code>/graphql</code> — the single endpoint the frontend uses for all reads and writes.</p>
