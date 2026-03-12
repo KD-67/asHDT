@@ -22,7 +22,7 @@ from typing import AsyncGenerator
 import strawberry
 import redis.asyncio as aioredis
 
-from backend.graphql.types.analysis import (
+from backend.graphql.analysis.types import (
     AnalysisJob,
     JobStatus,
     build_trajectory_report,
@@ -56,7 +56,7 @@ def _parse_update(job_id: str, data: dict) -> AnalysisJob:
 
 
 @strawberry.type
-class Subscription:
+class AnalysisSubscriptions:
 
     @strawberry.subscription(
         description=(

@@ -16,3 +16,11 @@ class Dataset:
     module_id:   str
     marker_id:   str
     entry_count: int
+
+
+@strawberry.input
+class DatapointInput:
+    measured_at:  str
+    value:        float
+    unit:         str
+    data_quality: str = "good"

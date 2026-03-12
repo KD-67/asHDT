@@ -11,8 +11,8 @@ from __future__ import annotations
 from typing import Optional
 from strawberry.dataloader import DataLoader
 from backend.startup.database_logistics import get_connection
-from backend.graphql.types.subject import Subject
-from backend.graphql.types.module import Marker
+from backend.graphql.subjects.types import Subject
+from backend.graphql.modules.types import Marker
 
 
 # ── Subject loader ─────────────────────────────────────────────────────────────

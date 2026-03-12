@@ -47,3 +47,56 @@ class DemographicZone:
     healthy_min:          float
     healthy_max:          float
     vulnerability_margin: float
+
+
+@strawberry.input
+class ModuleInput:
+    module_id:   str
+    module_name: str = ""
+    description: str = ""
+    format:      str = "json"
+
+
+@strawberry.input
+class ModuleUpdateInput:
+    module_name: str = ""
+    description: str = ""
+
+
+@strawberry.input
+class MarkerInput:
+    marker_id:            str
+    marker_name:          str = ""
+    description:          str = ""
+    unit:                 str = ""
+    volatility_class:     str = ""
+    healthy_min:          float = 0.0
+    healthy_max:          float = 1.0
+    vulnerability_margin: float = 0.2
+
+
+@strawberry.input
+class MarkerUpdateInput:
+    marker_name:          str = ""
+    description:          str = ""
+    unit:                 str = ""
+    volatility_class:     str = ""
+    healthy_min:          float = 0.0
+    healthy_max:          float = 1.0
+    vulnerability_margin: float = 0.2
+
+
+@strawberry.input
+class DemographicZoneInput:
+    sex:                  str
+    age:                  int
+    healthy_min:          float
+    healthy_max:          float
+    vulnerability_margin: float
+
+
+@strawberry.input
+class ZoneBoundaryInput:
+    healthy_min:          float
+    healthy_max:          float
+    vulnerability_margin: float

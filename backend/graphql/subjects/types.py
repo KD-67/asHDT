@@ -37,3 +37,14 @@ class ZoneReference:
     healthy_max:          float
     vulnerability_margin: float
     note:                 Optional[str]
+
+
+@strawberry.input
+class SubjectInput:
+    first_name: str
+    last_name:  str
+    sex:        str
+    dob:        str
+    email:      str
+    phone:      str
+    notes:      str = ""
