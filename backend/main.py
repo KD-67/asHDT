@@ -39,7 +39,7 @@ from strawberry.fastapi import GraphQLRouter
 from backend.graphql.schema import schema
 from backend.graphql.context import get_context
 
-graphql_router = GraphQLRouter(schema, context_getter=get_context)
+graphql_router = GraphQLRouter(schema, context_getter=get_context, multipart_uploads_enabled=True)
 app.include_router(graphql_router, prefix="/graphql")
 
 

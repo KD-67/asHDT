@@ -36,6 +36,14 @@ class AnalysisMethodInfo:
     output_type:          str
 
 
+# ── PCA result type ────────────────────────────────────────────────────────────
+
+@strawberry.type
+class PCAResult:
+    components: list[list[float]]
+    variance:   list[float]
+
+
 # ── Nested result types ────────────────────────────────────────────────────────
 
 @strawberry.type

@@ -4,7 +4,7 @@ from sklearn.preprocessing import StandardScaler
 
 def compute_pca(csv_file):
 
-    df = pd.read_csv(csv_file)
+    df = pd.read_csv(csv_file, sep=None, engine="python", index_col=0)
 
     # keep numeric columns
     df_numeric = df.select_dtypes(include="number")

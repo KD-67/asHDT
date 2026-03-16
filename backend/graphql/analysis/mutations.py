@@ -1,21 +1,34 @@
 from __future__ import annotations
 from datetime import datetime, timezone
+from io import BytesIO
 from uuid import uuid4
 
 import strawberry
 from strawberry.exceptions import GraphQLError
+from strawberry.file_uploads import Upload
 
 from backend.graphql.context import AppContext
 from backend.graphql.analysis.types import (
     AnalysisInput,
     AnalysisJob,
     JobStatus,
+    PCAResult,
 )
 from backend.core.storage.markerset_reader import resolve_markerset_markers
+from backend.core.analysis.pca_csv import compute_pca as _compute_pca
 
 
 @strawberry.type
 class AnalysisMutations:
+
+    @strawberry.mutation
+    async def compute_pca(self, file: Upload) -> PCAResult:
+        contents = await file.read()
+        result = _compute_pca(BytesIO(contents))
+        return PCAResult(
+            components=result["components"],
+            variance=result["variance"],
+        )
 
     @strawberry.mutation(
         description=(
